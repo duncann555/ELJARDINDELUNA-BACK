@@ -1,0 +1,49 @@
+{
+  "name": "el-jardin-de-luna-backend",
+  "version": "1.0.0",
+  "description": "Backend API de El Jardin de Luna preparado para Render.",
+  "main": "index.js",
+  "engines": {
+    "node": "22.x",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --env-file .env --watch index.js"
+  },
+  "keywords": [
+    "el-jardin-de-luna",
+    "herbolaria",
+    "node",
+    "express",
+    "mongodb",
+    "mongoose",
+    "api",
+    "rest",
+    "crud",
+    "ecommerce",
+    "productos",
+    "ventas",
+    "catalogo",
+    "auth",
+    "jwt",
+    "render"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cloudinary": "^2.8.0",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "express-validator": "^7.3.1",
+    "jsonwebtoken": "^9.0.3",
+    "mercadopago": "^2.12.0",
+    "mongodb": "^7.1.1",
+    "mongoose": "^9.0.1",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "nodemailer": "^8.0.4"
+  }
+}

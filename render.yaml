@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: el-jardin-de-luna-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        value: https://www.eljardindeluna.ar
+      - key: CORS_ORIGINS
+        value: https://www.eljardindeluna.ar,https://eljardindeluna.ar,https://eljardindeluna-frontend.vercel.app
+      - key: ALLOW_REQUESTS_WITHOUT_ORIGIN
+        value: "false"
+      - key: FIXED_SHIPPING_COST
+        value: "15000"
+      - key: FREE_SHIPPING_THRESHOLD
+        value: "60000"
+      - key: MONGODB
+        sync: false
+      - key: SECRETJWT
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: MP_WEBHOOK_URL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: MAIL_USER
+        sync: false
+      - key: MAIL_PASS
+        sync: false
