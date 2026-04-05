@@ -32,6 +32,8 @@ export const validarEmailUsuario = ({ allowCurrentUser = false } = {}) =>
     .trim()
     .notEmpty()
     .withMessage("El email es un dato obligatorio")
+    .isLength({ min: 6, max: 120 })
+    .withMessage("El email debe contener entre 6 y 120 caracteres")
     .isEmail()
     .withMessage("El email ingresado no es valido")
     .normalizeEmail()
@@ -63,7 +65,7 @@ export const validarPasswordUsuario = ({ optional = false } = {}) => {
   return chain
     .isLength({ min: 8 })
     .withMessage("La contrasena debe contener al menos 8 caracteres")
-    .isLength({ max: 72 })
-    .withMessage("La contrasena no puede superar los 72 caracteres");
+    .isLength({ max: 16 })
+    .withMessage("La contrasena no puede superar los 16 caracteres");
 };
 

@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import { PEDIDO_ESTADOS } from "../constants/pedidos.js";
 
 const pedidoSchema = new Schema(
   {
@@ -67,15 +68,16 @@ const pedidoSchema = new Schema(
         default: false,
       },
     },
+    inventario: {
+      descontado: {
+        type: Boolean,
+        default: false,
+      },
+      fechaActualizacion: Date,
+    },
     estadoPedido: {
       type: String,
-      enum: [
-        "En espera de pago",
-        "Preparando env\u00edo",
-        "Despachado",
-        "Entregado",
-        "Cancelado",
-      ],
+      enum: PEDIDO_ESTADOS,
       default: "En espera de pago",
     },
   },

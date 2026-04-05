@@ -22,6 +22,8 @@ const usuarioSchema = new Schema(
       unique: true,
       lowercase: true,
       trim: true,
+      minlength: 6,
+      maxlength: 120,
       match: [/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/, "El email no es valido"],
     },
     password: {
@@ -58,6 +60,9 @@ const usuarioSchema = new Schema(
         "El numero de WhatsApp es obligatorio para coordinar envios",
       ],
       trim: true,
+      minlength: 8,
+      maxlength: 15,
+      match: [/^\d{8,15}$/, "El numero de WhatsApp no es valido"],
     },
     carrito: [
       {

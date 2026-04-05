@@ -40,8 +40,8 @@ export const validacionProducto = [
   body("stock")
     .notEmpty()
     .withMessage("El stock es un dato obligatorio")
-    .isInt({ min: 0 })
-    .withMessage("El stock debe ser un numero entero mayor o igual a 0"),
+    .isInt({ min: 0, max: 9999 })
+    .withMessage("El stock debe ser un numero entero entre 0 y 9999"),
   body("descripcion")
     .trim()
     .notEmpty()

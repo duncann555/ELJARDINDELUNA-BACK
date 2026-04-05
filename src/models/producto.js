@@ -29,11 +29,13 @@ const productoSchema = new Schema(
       type: Number,
       required: true,
       min: 0,
+      max: 1000000,
     },
     stock: {
       type: Number,
       required: true,
       min: 0,
+      max: 9999,
     },
     imagenUrl: {
       type: String,
