@@ -61,9 +61,9 @@ export const validarPasswordUsuario = ({ optional = false } = {}) => {
   }
 
   return chain
-    .isLength({ min: 8, max: 72 })
-    .withMessage("La contrasena debe contener entre 8 y 72 caracteres")
-    .matches(/^(?=.*[A-Za-z])(?=.*\d).+$/)
-    .withMessage("La contrasena debe contener al menos una letra y un numero");
+    .isLength({ min: 8 })
+    .withMessage("La contrasena debe contener al menos 8 caracteres")
+    .isLength({ max: 72 })
+    .withMessage("La contrasena no puede superar los 72 caracteres");
 };
 

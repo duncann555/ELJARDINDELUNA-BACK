@@ -23,7 +23,6 @@ export const crearPedido = async (req, res) => {
         proveedor: resumen.envio.proveedor,
         costo: resumen.envio.costo,
         esGratis: resumen.envio.esGratis,
-        cotizacionFuente: resumen.envio.metodo,
       },
       pago: { estado: "pending" },
       estadoPedido: "En espera de pago",
@@ -68,23 +67,6 @@ export const listarPedidos = async (req, res) => {
   }
 };
 
-export const obtenerPedidoID = async (req, res) => {
-  try {
-    const pedido = await Pedido.findById(req.params.id).populate(
-      "usuario",
-      "nombre apellido email",
-    );
-
-    if (!pedido) {
-      return res.status(404).json({ mensaje: "Pedido no encontrado" });
-    }
-
-    res.status(200).json(pedido);
-  } catch (error) {
-    return responderError(res, 500, "Error al obtener pedido", error);
-  }
-};
-
 export const actualizarEstadoPedido = async (req, res) => {
   try {
     const { estadoPedido } = req.body;
@@ -103,36 +85,5 @@ export const actualizarEstadoPedido = async (req, res) => {
     });
   } catch (error) {
     return responderError(res, 500, "Error al actualizar pedido", error);
-  }
-};
-
-export const eliminarPedido = async (req, res) => {
-  try {
-    const pedido = await Pedido.findByIdAndDelete(req.params.id);
-
-    if (!pedido) {
-      return res.status(404).json({ mensaje: "Pedido no encontrado" });
-    }
-
-    res.status(200).json({ mensaje: "Pedido eliminado correctamente" });
-  } catch (error) {
-    return responderError(res, 500, "Error al eliminar pedido", error);
-  }
-};
-
-export const listarPedidosUsuario = async (req, res) => {
-  try {
-    const pedidos = await Pedido.find({ usuario: req.usuarioId }).sort({
-      createdAt: -1,
-    });
-
-    res.status(200).json(pedidos);
-  } catch (error) {
-    return responderError(
-      res,
-      500,
-      "Error al obtener historial de pedidos",
-      error,
-    );
   }
 };

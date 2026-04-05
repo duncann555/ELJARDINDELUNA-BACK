@@ -6,7 +6,6 @@ import {
   restablecerPassword,
   listarUsuarios,
   obtenerUsuarioID,
-  actualizarUsuario,
   cambiarEstadoUsuario,
   eliminarUsuario,
   actualizarCarrito,
@@ -15,7 +14,6 @@ import verificarJWT from "../middlewares/verificarJWT.js";
 import { EsAdmin } from "../middlewares/verificarRoles.js";
 import validacionUsuarios from "../middlewares/validacionUsuarios.js";
 import validacionLogin from "../middlewares/validacionLogin.js";
-import validacionEdicionUsuario from "../middlewares/validacionEdicionUsuario.js";
 import validarEstadoUsuario from "../middlewares/validarEstadoUsuario.js";
 import validacionID from "../middlewares/validacionID.js";
 import autorizarUsuarioOAdmin from "../middlewares/autorizarUsuarioOAdmin.js";
@@ -54,15 +52,6 @@ router.get(
   validacionID,
   autorizarUsuarioOAdmin(),
   obtenerUsuarioID,
-);
-
-router.put(
-  "/:id",
-  verificarJWT,
-  EsAdmin,
-  validacionID,
-  validacionEdicionUsuario,
-  actualizarUsuario,
 );
 
 router.patch(

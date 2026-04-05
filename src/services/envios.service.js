@@ -1,6 +1,7 @@
 import Producto from "../models/producto.js";
 
 const FIXED_SHIPPING_COST = Number(process.env.FIXED_SHIPPING_COST || 15000);
+const FREE_SHIPPING_THRESHOLD = Number(process.env.FREE_SHIPPING_THRESHOLD || 60000);
 
 const normalizarTexto = (value) =>
   typeof value === "string" ? value.trim() : "";
@@ -88,7 +89,6 @@ export const resolverProductosPedido = async (productosSolicitados) => {
     productosFinal.push({
       producto: productoBD._id,
       nombre: productoBD.nombre,
-      categoria: productoBD.categoria,
       precio,
       cantidad,
     });
@@ -103,7 +103,8 @@ export const resolverProductosPedido = async (productosSolicitados) => {
 export const construirResumenPedido = async ({ productos, envio }) => {
   const { productosFinal, subtotal } = await resolverProductosPedido(productos);
   const envioNormalizado = validarDatosEnvio(envio);
-  const costo = FIXED_SHIPPING_COST;
+  const esGratis = subtotal >= FREE_SHIPPING_THRESHOLD;
+  const costo = esGratis ? 0 : FIXED_SHIPPING_COST;
 
   return {
     productosFinal,
@@ -111,9 +112,7 @@ export const construirResumenPedido = async ({ productos, envio }) => {
     envio: {
       proveedor: "Envio nacional",
       costo,
-      esGratis: false,
-      metodo: "flat_rate",
-      detalle: `Envio fijo nacional por $${FIXED_SHIPPING_COST.toLocaleString("es-AR")}`,
+      esGratis,
       destino: envioNormalizado,
     },
     total: Number((subtotal + costo).toFixed(2)),

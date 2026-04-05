@@ -4,6 +4,7 @@ import resultadoValidacion from "./resultadoValidacion.js";
 import {
   PRODUCTO_CATEGORIAS,
   PRODUCTO_ESTADOS,
+  esProductoCategoriaValida,
 } from "../constants/productos.js";
 
 export const validacionProducto = [
@@ -32,7 +33,7 @@ export const validacionProducto = [
     .trim()
     .notEmpty()
     .withMessage("La categoria es un dato obligatorio")
-    .isIn(PRODUCTO_CATEGORIAS)
+    .custom((value) => esProductoCategoriaValida(value))
     .withMessage(
       `La categoria debe ser valida (${PRODUCTO_CATEGORIAS.join(", ")})`,
     ),

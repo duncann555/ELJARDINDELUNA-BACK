@@ -66,7 +66,6 @@ const pedidoSchema = new Schema(
         type: Boolean,
         default: false,
       },
-      cotizacionFuente: String,
     },
     estadoPedido: {
       type: String,

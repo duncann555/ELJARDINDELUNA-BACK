@@ -48,7 +48,7 @@ const usuarioSchema = new Schema(
     },
     estado: {
       type: String,
-      enum: ["Activo", "Pendiente", "Suspendido"],
+      enum: ["Activo", "Suspendido"],
       default: "Activo",
     },
     telefono: {

@@ -2,10 +2,7 @@ import { Router } from "express";
 import {
   crearPedido,
   listarPedidos,
-  obtenerPedidoID,
   actualizarEstadoPedido,
-  eliminarPedido,
-  listarPedidosUsuario,
 } from "../controllers/pedidos.controllers.js";
 
 import verificarJWT from "../middlewares/verificarJWT.js";
@@ -26,14 +23,9 @@ router.post("/", verificarJWT, validacionPedido, crearPedido);
 // Listar pedidos (admin ve todos / usuario solo los suyos)
 router.get("/", verificarJWT, listarPedidos);
 
-// Historial del usuario logueado
-router.get("/mis-pedidos", verificarJWT, listarPedidosUsuario);
-
 /* ==========================================
    RUTAS SOLO PARA ADMIN
 ========================================== */
-
-router.get("/:id", verificarJWT, EsAdmin, validacionID, obtenerPedidoID);
 
 router.patch(
   "/:id",
@@ -41,15 +33,7 @@ router.patch(
   EsAdmin,
   validacionID,
   validacionCambioEstado,
-  actualizarEstadoPedido
-);
-
-router.delete(
-  "/:id",
-  verificarJWT,
-  EsAdmin,
-  validacionID,
-  eliminarPedido
+  actualizarEstadoPedido,
 );
 
 export default router;

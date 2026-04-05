@@ -13,18 +13,13 @@ import { sendPasswordResetEmail } from "../services/email.service.js";
 const SALT_ROUNDS = 10;
 const PASSWORD_RESET_SUCCESS_MESSAGE =
   "Si el email existe, te enviaremos un enlace para restablecer tu contrasena.";
-const CAMPOS_EDITABLES_USUARIO = [
-  "nombre",
-  "apellido",
-  "telefono",
-  "rol",
-  "estado",
-];
 
 const normalizarTexto = (valor) =>
   typeof valor === "string" ? valor.trim() : "";
 
 const normalizarEmail = (valor) => normalizarTexto(valor).toLowerCase();
+const normalizarEstadoUsuario = (valor) =>
+  valor === "Activo" ? "Activo" : "Suspendido";
 
 const generarHashPassword = (password) =>
   bcrypt.hashSync(password, bcrypt.genSaltSync(SALT_ROUNDS));
@@ -59,44 +54,19 @@ const sanitizarCarrito = (carrito) =>
     imagenUrl: typeof item.imagenUrl === "string" ? item.imagenUrl : "",
   }));
 
-const construirActualizacionUsuario = async ({ id, body }) => {
-  const datosActualizados = {};
+const serializarUsuario = (usuario) => {
+  const usuarioPlano =
+    typeof usuario?.toObject === "function" ? usuario.toObject() : usuario;
 
-  for (const campo of CAMPOS_EDITABLES_USUARIO) {
-    if (body[campo] !== undefined) {
-      datosActualizados[campo] =
-        campo === "nombre" || campo === "apellido" || campo === "telefono"
-          ? normalizarTexto(body[campo])
-          : body[campo];
-    }
-  }
-
-  if (body.email) {
-    const emailNormalizado = normalizarEmail(body.email);
-    const existe = await Usuario.findOne({ email: emailNormalizado });
-
-    if (existe && existe._id.toString() !== id) {
-      return {
-        error: {
-          status: 400,
-          mensaje: "Ese email ya esta en uso",
-        },
-      };
-    }
-
-    datosActualizados.email = emailNormalizado;
-  }
-
-  if (body.password) {
-    datosActualizados.password = generarHashPassword(body.password);
-  }
-
-  return { datosActualizados };
+  return {
+    ...usuarioPlano,
+    estado: normalizarEstadoUsuario(usuarioPlano?.estado),
+  };
 };
 
 const responderCuentaInactiva = (res) =>
   res.status(401).json({
-    mensaje: "Cuenta suspendida o pendiente de activacion",
+    mensaje: "Cuenta suspendida",
   });
 
 export const crearUsuario = async (req, res) => {
@@ -269,7 +239,7 @@ export const listarUsuarios = async (_req, res) => {
       email: { $ne: process.env.ADMIN_EMAIL },
     }).select("-password");
 
-    return res.status(200).json(usuarios);
+    return res.status(200).json(usuarios.map(serializarUsuario));
   } catch (error) {
     return responderError(res, 500, "Error al listar usuarios", error);
   }
@@ -283,42 +253,9 @@ export const obtenerUsuarioID = async (req, res) => {
       return res.status(404).json({ mensaje: "Usuario no encontrado" });
     }
 
-    return res.status(200).json(usuario);
+    return res.status(200).json(serializarUsuario(usuario));
   } catch (error) {
     return responderError(res, 500, "Error al buscar usuario", error);
-  }
-};
-
-export const actualizarUsuario = async (req, res) => {
-  try {
-    const { error, datosActualizados } = await construirActualizacionUsuario({
-      id: req.params.id,
-      body: req.body,
-    });
-
-    if (error) {
-      return res.status(error.status).json({ mensaje: error.mensaje });
-    }
-
-    const usuarioEditado = await Usuario.findByIdAndUpdate(
-      req.params.id,
-      datosActualizados,
-      {
-        new: true,
-        runValidators: true,
-      },
-    ).select("-password");
-
-    if (!usuarioEditado) {
-      return res.status(404).json({ mensaje: "Usuario no encontrado" });
-    }
-
-    return res.status(200).json({
-      mensaje: "Usuario actualizado",
-      usuario: usuarioEditado,
-    });
-  } catch (error) {
-    return responderError(res, 500, "Error al actualizar usuario", error);
   }
 };
 
@@ -334,7 +271,10 @@ export const cambiarEstadoUsuario = async (req, res) => {
       return res.status(404).json({ mensaje: "Usuario no encontrado" });
     }
 
-    return res.status(200).json({ mensaje: "Estado actualizado", usuario });
+    return res.status(200).json({
+      mensaje: "Estado actualizado",
+      usuario: serializarUsuario(usuario),
+    });
   } catch (error) {
     return responderError(res, 500, "Error al cambiar estado", error);
   }

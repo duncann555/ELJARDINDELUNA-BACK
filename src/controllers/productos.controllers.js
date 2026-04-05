@@ -2,13 +2,16 @@ import Producto from "../models/producto.js";
 import subirImagenCloudinary from "../helpers/cloudinaryUploader.js";
 import { controlarStock } from "../helpers/controlarStock.js";
 import { responderError } from "../helpers/safeError.js";
-import { PRODUCTO_CAMPOS_EDITABLES } from "../constants/productos.js";
+import {
+  PRODUCTO_CAMPOS_EDITABLES,
+  normalizarProductoCategoria,
+} from "../constants/productos.js";
 
 const IMAGEN_PLACEHOLDER = "https://placehold.co/600x400?text=Sin+Imagen";
 
 const construirPayloadProducto = (body, imagenUrl) => ({
   nombre: body.nombre,
-  categoria: body.categoria,
+  categoria: normalizarProductoCategoria(body.categoria),
   descripcion: body.descripcion,
   precio: body.precio,
   stock: body.stock,
@@ -21,9 +24,22 @@ const construirPayloadProducto = (body, imagenUrl) => ({
 const asignarCamposEditables = (producto, body) => {
   for (const campo of PRODUCTO_CAMPOS_EDITABLES) {
     if (body[campo] !== undefined) {
-      producto[campo] = body[campo];
+      producto[campo] =
+        campo === "categoria"
+          ? normalizarProductoCategoria(body[campo])
+          : body[campo];
     }
   }
+};
+
+const serializarProducto = (producto) => {
+  const productoPlano =
+    typeof producto?.toObject === "function" ? producto.toObject() : producto;
+
+  return {
+    ...productoPlano,
+    categoria: normalizarProductoCategoria(productoPlano?.categoria),
+  };
 };
 
 const escapeRegex = (value) =>
@@ -49,7 +65,7 @@ export const crearProducto = async (req, res) => {
 
     return res.status(201).json({
       mensaje: "Producto creado exitosamente",
-      producto: nuevoProducto,
+      producto: serializarProducto(nuevoProducto),
     });
   } catch (error) {
     return responderError(res, 500, "Error al crear el producto", error);
@@ -59,7 +75,7 @@ export const crearProducto = async (req, res) => {
 export const listarProductos = async (_req, res) => {
   try {
     const productos = await Producto.find().sort({ createdAt: -1 });
-    return res.status(200).json(productos);
+    return res.status(200).json(productos.map(serializarProducto));
   } catch (error) {
     return responderError(res, 500, "Error al listar los productos", error);
   }
@@ -73,7 +89,7 @@ export const obtenerProductoID = async (req, res) => {
       return res.status(404).json({ mensaje: "Producto no encontrado" });
     }
 
-    return res.status(200).json(producto);
+    return res.status(200).json(serializarProducto(producto));
   } catch (error) {
     return responderError(res, 500, "Error al obtener el producto", error);
   }
@@ -88,6 +104,7 @@ export const editarProducto = async (req, res) => {
     }
 
     asignarCamposEditables(producto, req.body);
+    producto.categoria = normalizarProductoCategoria(producto.categoria);
 
     if (req.file) {
       producto.imagenUrl = await subirImagenProducto(req.file);
@@ -98,7 +115,7 @@ export const editarProducto = async (req, res) => {
 
     return res.status(200).json({
       mensaje: "Producto actualizado correctamente",
-      producto,
+      producto: serializarProducto(producto),
     });
   } catch (error) {
     return responderError(res, 500, "Error al editar el producto", error);
@@ -142,7 +159,7 @@ export const filtrarProductoNombre = async (req, res) => {
         : {},
     );
 
-    return res.status(200).json(productos);
+    return res.status(200).json(productos.map(serializarProducto));
   } catch (error) {
     return responderError(res, 500, "Error al filtrar productos", error);
   }
