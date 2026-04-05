@@ -49,7 +49,7 @@ const pedidoSchema = new Schema(
     envio: {
       proveedor: {
         type: String,
-        default: "Andreani",
+        default: "Envio nacional",
       },
       provincia: String,
       ciudad: String,
@@ -58,17 +58,6 @@ const pedidoSchema = new Schema(
       entreCalles: String,
       referencia: String,
       codigoPostal: String,
-      trackingId: String,
-      estado: {
-        type: String,
-        enum: ["Pendiente", "Despachado", "Entregado"],
-        default: "Pendiente",
-      },
-      estadoDetalle: String,
-      ultimoComentarioAndreani: String,
-      ultimaActualizacionAndreani: Date,
-      ultimaConsultaAndreani: Date,
-      ultimoErrorAndreani: String,
       costo: {
         type: Number,
         default: 0,

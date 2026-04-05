@@ -1,18 +1,6 @@
 import Pedido from "../models/pedido.js";
-import {
-  construirResumenPedido,
-  sincronizarPedidoConAndreani,
-  sincronizarPedidosEnMemoriaConAndreani,
-} from "../services/envios.service.js";
+import { construirResumenPedido } from "../services/envios.service.js";
 import { responderError } from "../helpers/safeError.js";
-
-const sincronizarPedidosAntesDeResponder = async (pedidos) => {
-  try {
-    await sincronizarPedidosEnMemoriaConAndreani(pedidos);
-  } catch (error) {
-    console.error("Error al sincronizar pedidos con Andreani:", error);
-  }
-};
 
 export const crearPedido = async (req, res) => {
   try {
@@ -74,8 +62,6 @@ export const listarPedidos = async (req, res) => {
       .populate("usuario", "nombre apellido email")
       .sort({ createdAt: -1 });
 
-    await sincronizarPedidosAntesDeResponder(pedidos);
-
     res.status(200).json(pedidos);
   } catch (error) {
     return responderError(res, 500, "Error al listar pedidos", error);
@@ -93,8 +79,6 @@ export const obtenerPedidoID = async (req, res) => {
       return res.status(404).json({ mensaje: "Pedido no encontrado" });
     }
 
-    await sincronizarPedidosAntesDeResponder(pedido);
-
     res.status(200).json(pedido);
   } catch (error) {
     return responderError(res, 500, "Error al obtener pedido", error);
@@ -103,54 +87,19 @@ export const obtenerPedidoID = async (req, res) => {
 
 export const actualizarEstadoPedido = async (req, res) => {
   try {
-    const { estadoPedido, trackingId } = req.body;
+    const { estadoPedido } = req.body;
     const pedido = await Pedido.findById(req.params.id);
 
     if (!pedido) {
       return res.status(404).json({ mensaje: "Pedido no encontrado" });
     }
 
-    const trackingAnterior = pedido.envio?.trackingId || "";
-    const trackingNormalizado = String(trackingId || "").trim();
-
-    if (estadoPedido) {
-      pedido.estadoPedido = estadoPedido;
-    }
-
-    if (trackingNormalizado) {
-      pedido.envio.trackingId = trackingNormalizado;
-      pedido.envio.estado = "Despachado";
-
-      if (!["Cancelado", "Entregado"].includes(pedido.estadoPedido)) {
-        pedido.estadoPedido = "Despachado";
-      }
-    }
-
-    pedido.markModified("envio");
+    pedido.estadoPedido = estadoPedido;
     await pedido.save();
-
-    let sincronizacionAndreani = null;
-    const trackingActualizado =
-      trackingNormalizado && trackingNormalizado !== trackingAnterior;
-
-    if (trackingActualizado && pedido.estadoPedido !== "Cancelado") {
-      try {
-        sincronizacionAndreani = await sincronizarPedidoConAndreani(pedido, {
-          force: true,
-        });
-      } catch (error) {
-        console.error("Error al sincronizar tracking con Andreani:", error);
-        sincronizacionAndreani = {
-          ok: false,
-          error: error?.message || "No se pudo sincronizar el tracking",
-        };
-      }
-    }
 
     res.status(200).json({
       mensaje: "Pedido actualizado correctamente",
       pedido,
-      sincronizacionAndreani,
     });
   } catch (error) {
     return responderError(res, 500, "Error al actualizar pedido", error);
@@ -176,8 +125,6 @@ export const listarPedidosUsuario = async (req, res) => {
     const pedidos = await Pedido.find({ usuario: req.usuarioId }).sort({
       createdAt: -1,
     });
-
-    await sincronizarPedidosAntesDeResponder(pedidos);
 
     res.status(200).json(pedidos);
   } catch (error) {

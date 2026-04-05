@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 
-const JWT_ISSUER = "essenzia-backend";
+const JWT_ISSUER = "el-jardin-de-luna-backend";
 
 const obtenerTokenDesdeRequest = (req) => {
   const tokenHeader = req.header("x-token");

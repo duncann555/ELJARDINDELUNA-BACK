@@ -2,14 +2,14 @@ import mongoose from "mongoose";
 
 const globalConnection = globalThis;
 
-if (!globalConnection.__essenziaMongo) {
-  globalConnection.__essenziaMongo = {
+if (!globalConnection.__elJardinDeLunaMongo) {
+  globalConnection.__elJardinDeLunaMongo = {
     connection: null,
     promise: null,
   };
 }
 
-const cache = globalConnection.__essenziaMongo;
+const cache = globalConnection.__elJardinDeLunaMongo;
 
 export const conectarBD = async () => {
   try {

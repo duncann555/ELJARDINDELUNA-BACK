@@ -9,7 +9,7 @@ const cloudinaryUploader = (file) => {
 
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        folder: "essenzia_productos",
+        folder: "el_jardin_de_luna_productos",
         resource_type: "image",
         allowed_formats: ["jpg", "jpeg", "png", "webp", "avif"],
       },

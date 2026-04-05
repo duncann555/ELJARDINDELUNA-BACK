@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 
-const JWT_ISSUER = "essenzia-backend";
+const JWT_ISSUER = "el-jardin-de-luna-backend";
 
 const generarJWT = (uid, nombre, rol, email) => {
   return new Promise((resolve, reject) => {

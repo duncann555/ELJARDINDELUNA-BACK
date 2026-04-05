@@ -46,7 +46,7 @@ const crearItemsPreferencia = (pedido) => [
     ? [
         {
           id: `envio-${pedido._id.toString()}`,
-          title: `Envio ${pedido.envio?.proveedor || "Andreani"}`,
+          title: `Envio ${pedido.envio?.proveedor || "nacional"}`,
           quantity: 1,
           unit_price: Number(pedido.envio.costo),
           currency_id: "ARS",
