@@ -83,7 +83,6 @@ No es obligatorio usar `api`, pero es la opcion mas limpia para separar frontend
 - `CORS_ORIGINS=https://www.eljardindeluna.ar,https://eljardindeluna.ar,https://eljardindeluna-frontend.vercel.app`
 - `ALLOW_REQUESTS_WITHOUT_ORIGIN=false`
 - `FIXED_SHIPPING_COST=15000`
-- `FREE_SHIPPING_THRESHOLD=60000`
 
 ### Variables opcionales
 

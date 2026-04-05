@@ -17,8 +17,6 @@ services:
         value: "false"
       - key: FIXED_SHIPPING_COST
         value: "15000"
-      - key: FREE_SHIPPING_THRESHOLD
-        value: "60000"
       - key: MONGODB
         sync: false
       - key: SECRETJWT
