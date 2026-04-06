@@ -6,14 +6,14 @@ const usuarioSchema = new Schema(
       type: String,
       required: [true, "El nombre es obligatorio"],
       trim: true,
-      minlength: 3,
+      minlength: 2,
       maxlength: 50,
     },
     apellido: {
       type: String,
       required: [true, "El apellido es obligatorio"],
       trim: true,
-      minlength: 3,
+      minlength: 2,
       maxlength: 50,
     },
     email: {
@@ -25,6 +25,18 @@ const usuarioSchema = new Schema(
       minlength: 6,
       maxlength: 120,
       match: [/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/, "El email no es valido"],
+    },
+    firebaseUid: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      default: null,
+    },
+    firebaseProvider: {
+      type: String,
+      enum: ["google.com", "facebook.com", null],
+      default: null,
     },
     password: {
       type: String,

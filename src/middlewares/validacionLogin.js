@@ -1,6 +1,9 @@
 import { body } from "express-validator";
 import resultadoValidacion from "./resultadoValidacion.js";
 
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MAX_LENGTH = 40;
+
 const validacionLogin = [
   body("email")
     .trim()
@@ -14,8 +17,10 @@ const validacionLogin = [
   body("password")
     .notEmpty()
     .withMessage("La contrasena es un dato obligatorio")
-    .isLength({ min: 8, max: 16 })
-    .withMessage("La contrasena debe contener entre 8 y 16 caracteres"),
+    .isLength({ min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH })
+    .withMessage(
+      `La contrasena debe contener entre ${PASSWORD_MIN_LENGTH} y ${PASSWORD_MAX_LENGTH} caracteres`,
+    ),
   (req, res, next) => resultadoValidacion(req, res, next),
 ];
 

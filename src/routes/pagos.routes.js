@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   crearPreferencia,
+  recibirWebhookMercadoPago,
   registrarResultadoPago,
 } from "../controllers/pagos.controllers.js";
 import verificarJWT from "../middlewares/verificarJWT.js";
@@ -17,6 +18,8 @@ const pagosRateLimit = createRateLimiter({
   message: "Se alcanzo el limite temporal para operaciones de pago",
   keyPrefix: "pagos",
 });
+
+router.post("/webhook", pagosRateLimit, recibirWebhookMercadoPago);
 
 router.post(
   "/checkout",

@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   crearUsuario,
   login,
+  loginSocial,
   solicitarRecuperacionPassword,
   restablecerPassword,
   listarUsuarios,
@@ -21,6 +22,7 @@ import createRateLimiter from "../middlewares/createRateLimiter.js";
 import validacionCarrito from "../middlewares/validacionCarrito.js";
 import validacionRecuperarPassword from "../middlewares/validacionRecuperarPassword.js";
 import validacionResetPassword from "../middlewares/validacionResetPassword.js";
+import validacionSocialLogin from "../middlewares/validacionSocialLogin.js";
 
 const router = Router();
 const authRateLimit = createRateLimiter({
@@ -32,6 +34,7 @@ const authRateLimit = createRateLimiter({
 
 router.post("/", authRateLimit, validacionUsuarios, crearUsuario);
 router.post("/login", authRateLimit, validacionLogin, login);
+router.post("/social-login", authRateLimit, validacionSocialLogin, loginSocial);
 router.post(
   "/forgot-password",
   authRateLimit,

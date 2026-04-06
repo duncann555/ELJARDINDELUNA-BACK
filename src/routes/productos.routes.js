@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   crearProducto,
   listarProductos,
+  listarProductosAdmin,
   obtenerProductoID,
   editarProducto,
   eliminarProducto,
@@ -17,6 +18,7 @@ import validacionID from "../middlewares/validacionID.js";
 const router = Router();
 
 router.get("/", listarProductos);
+router.get("/admin/todos", verificarJWT, EsAdmin, listarProductosAdmin);
 router.get("/buscar", filtrarProductoNombre);
 router.get("/:id", validacionID, obtenerProductoID);
 

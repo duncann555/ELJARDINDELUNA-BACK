@@ -1,5 +1,12 @@
+import mongoose from "mongoose";
 import Pedido from "../models/pedido.js";
+import {
+  ESTADO_PEDIDO_EN_ESPERA_PAGO,
+  pedidoDebeMantenerStockDescontado,
+  puedeUsarEstadoPedidoConPago,
+} from "../constants/pedidos.js";
 import { construirResumenPedido } from "../services/envios.service.js";
+import { sincronizarInventarioPedido } from "../services/pedidoInventory.service.js";
 import { responderError } from "../helpers/safeError.js";
 
 export const crearPedido = async (req, res) => {
@@ -25,7 +32,7 @@ export const crearPedido = async (req, res) => {
         esGratis: resumen.envio.esGratis,
       },
       pago: { estado: "pending" },
-      estadoPedido: "En espera de pago",
+      estadoPedido: ESTADO_PEDIDO_EN_ESPERA_PAGO,
     });
 
     await pedido.save();
@@ -68,6 +75,8 @@ export const listarPedidos = async (req, res) => {
 };
 
 export const actualizarEstadoPedido = async (req, res) => {
+  const session = await mongoose.startSession();
+
   try {
     const { estadoPedido } = req.body;
     const pedido = await Pedido.findById(req.params.id);
@@ -76,14 +85,56 @@ export const actualizarEstadoPedido = async (req, res) => {
       return res.status(404).json({ mensaje: "Pedido no encontrado" });
     }
 
-    pedido.estadoPedido = estadoPedido;
-    await pedido.save();
+    if (
+      !puedeUsarEstadoPedidoConPago({
+        estadoPedido,
+        estadoPago: pedido.pago?.estado,
+      })
+    ) {
+      return res.status(400).json({
+        mensaje:
+          "No puedes pasar el pedido a gestion o entrega sin un pago aprobado",
+      });
+    }
+
+    let pedidoActualizado = null;
+
+    await session.withTransaction(async () => {
+      const pedidoEnTransaccion = await Pedido.findById(req.params.id).session(
+        session,
+      );
+
+      if (!pedidoEnTransaccion) {
+        throw new Error("Pedido no encontrado");
+      }
+
+      await sincronizarInventarioPedido({
+        pedido: pedidoEnTransaccion,
+        session,
+        debeDescontar: pedidoDebeMantenerStockDescontado({
+          estadoPedido,
+          estadoPago: pedidoEnTransaccion.pago?.estado,
+        }),
+      });
+
+      pedidoEnTransaccion.estadoPedido = estadoPedido;
+      await pedidoEnTransaccion.save({ session });
+      pedidoActualizado = pedidoEnTransaccion;
+    });
 
     res.status(200).json({
       mensaje: "Pedido actualizado correctamente",
-      pedido,
+      pedido: pedidoActualizado,
     });
   } catch (error) {
+    if (error?.status) {
+      return res.status(error.status).json({
+        mensaje: error.publicMessage || error.message,
+      });
+    }
+
     return responderError(res, 500, "Error al actualizar pedido", error);
+  } finally {
+    await session.endSession();
   }
 };

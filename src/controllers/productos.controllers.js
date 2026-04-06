@@ -8,6 +8,10 @@ import {
 } from "../constants/productos.js";
 
 const IMAGEN_PLACEHOLDER = "https://placehold.co/600x400?text=Sin+Imagen";
+const FILTRO_PRODUCTO_PUBLICO = {
+  estado: "Activo",
+  stock: { $gt: 0 },
+};
 
 const construirPayloadProducto = (body, imagenUrl) => ({
   nombre: body.nombre,
@@ -61,6 +65,7 @@ export const crearProducto = async (req, res) => {
       construirPayloadProducto(req.body, imagenUrl),
     );
 
+    controlarStock(nuevoProducto);
     await nuevoProducto.save();
 
     return res.status(201).json({
@@ -72,7 +77,7 @@ export const crearProducto = async (req, res) => {
   }
 };
 
-export const listarProductos = async (_req, res) => {
+export const listarProductosAdmin = async (_req, res) => {
   try {
     const productos = await Producto.find().sort({ createdAt: -1 });
     return res.status(200).json(productos.map(serializarProducto));
@@ -81,9 +86,23 @@ export const listarProductos = async (_req, res) => {
   }
 };
 
+export const listarProductos = async (_req, res) => {
+  try {
+    const productos = await Producto.find(FILTRO_PRODUCTO_PUBLICO).sort({
+      createdAt: -1,
+    });
+    return res.status(200).json(productos.map(serializarProducto));
+  } catch (error) {
+    return responderError(res, 500, "Error al listar los productos", error);
+  }
+};
+
 export const obtenerProductoID = async (req, res) => {
   try {
-    const producto = await Producto.findById(req.params.id);
+    const producto = await Producto.findOne({
+      _id: req.params.id,
+      ...FILTRO_PRODUCTO_PUBLICO,
+    });
 
     if (!producto) {
       return res.status(404).json({ mensaje: "Producto no encontrado" });
@@ -148,16 +167,17 @@ export const filtrarProductoNombre = async (req, res) => {
       });
     }
 
-    const productos = await Producto.find(
-      nombre
+    const productos = await Producto.find({
+      ...FILTRO_PRODUCTO_PUBLICO,
+      ...(nombre
         ? {
             nombre: {
               $regex: escapeRegex(nombre),
               $options: "i",
             },
           }
-        : {},
-    );
+        : {}),
+    }).sort({ createdAt: -1 });
 
     return res.status(200).json(productos.map(serializarProducto));
   } catch (error) {
