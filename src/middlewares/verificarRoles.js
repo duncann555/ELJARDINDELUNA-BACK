@@ -1,4 +1,4 @@
-export const EsAdmin = (req, res, next) => {
+export const esAdministrador = (req, res, next) => {
   // Verificamos si verificarJWT hizo su trabajo
   if (!req.rol) {
     return res.status(500).json({ 

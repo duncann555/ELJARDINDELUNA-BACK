@@ -1,5 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 
+const FIREBASE_PROVIDERS_PERMITIDOS = ["google.com", null];
+
 const usuarioSchema = new Schema(
   {
     nombre: {
@@ -35,7 +37,7 @@ const usuarioSchema = new Schema(
     },
     firebaseProvider: {
       type: String,
-      enum: ["google.com", "facebook.com", null],
+      enum: FIREBASE_PROVIDERS_PERMITIDOS,
       default: null,
     },
     password: {
@@ -97,6 +99,15 @@ const usuarioSchema = new Schema(
     versionKey: false,
   },
 );
+
+usuarioSchema.pre("validate", function () {
+  if (
+    this.firebaseProvider &&
+    !FIREBASE_PROVIDERS_PERMITIDOS.includes(this.firebaseProvider)
+  ) {
+    this.firebaseProvider = null;
+  }
+});
 
 usuarioSchema.methods.toJSON = function () {
   const { password, ...usuario } = this.toObject();

@@ -56,6 +56,9 @@ const parseOriginUrl = (value) => {
   }
 };
 
+const isDevelopment = process.env.NODE_ENV !== "production";
+const LOCALHOST_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
 const resolveOriginPort = (url) => {
   if (!url) {
     return "";
@@ -74,6 +77,20 @@ const resolveOriginPort = (url) => {
   }
 
   return "";
+};
+
+const isAllowedLocalDevelopmentOrigin = (origin) => {
+  if (!isDevelopment) {
+    return false;
+  }
+
+  const requestedUrl = parseOriginUrl(origin);
+
+  if (!requestedUrl || !["http:", "https:"].includes(requestedUrl.protocol)) {
+    return false;
+  }
+
+  return LOCALHOST_HOSTNAMES.has(requestedUrl.hostname);
 };
 
 const usesDefaultOriginPort = (url) => {
@@ -166,6 +183,7 @@ const corsOptions = shouldUseCustomCors
         const normalizedOrigin = normalizarOrigen(origin);
 
         if (
+          isAllowedLocalDevelopmentOrigin(normalizedOrigin) ||
           isAllowedConfiguredOrigin(normalizedOrigin) ||
           isAllowedVercelPreviewOrigin(normalizedOrigin)
         ) {

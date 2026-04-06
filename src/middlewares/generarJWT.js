@@ -6,9 +6,10 @@ const generarJWT = (uid, nombre, rol, email) => {
   return new Promise((resolve, reject) => {
     const secret = process.env.SECRETJWT;
     const payload = { uid, nombre, rol, email };
+    const tokenError = new Error("No se pudo generar el token");
 
     if (!secret) {
-      reject("No se pudo generar el token");
+      reject(tokenError);
       return;
     }
 
@@ -22,9 +23,9 @@ const generarJWT = (uid, nombre, rol, email) => {
         subject: String(uid),
       },
       (err, token) => {
-        if (err) {
-          console.log(err);
-          reject("No se pudo generar el token");
+        if (err || !token) {
+          console.error("[jwt] Error al generar token:", err || tokenError);
+          reject(tokenError);
           return;
         }
 

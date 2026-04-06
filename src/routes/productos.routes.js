@@ -9,7 +9,7 @@ import {
   filtrarProductoNombre,
 } from "../controllers/productos.controllers.js";
 import verificarJWT from "../middlewares/verificarJWT.js";
-import { EsAdmin } from "../middlewares/verificarRoles.js";
+import { esAdministrador } from "../middlewares/verificarRoles.js";
 import upload from "../helpers/upload.js";
 import errorMulter from "../middlewares/ErrorMulter.js";
 import { validacionProducto } from "../middlewares/validacionProducto.js";
@@ -18,14 +18,14 @@ import validacionID from "../middlewares/validacionID.js";
 const router = Router();
 
 router.get("/", listarProductos);
-router.get("/admin/todos", verificarJWT, EsAdmin, listarProductosAdmin);
+router.get("/admin/todos", verificarJWT, esAdministrador, listarProductosAdmin);
 router.get("/buscar", filtrarProductoNombre);
 router.get("/:id", validacionID, obtenerProductoID);
 
 router.post(
   "/",
   verificarJWT,
-  EsAdmin,
+  esAdministrador,
   upload.single("imagen"),
   errorMulter,
   validacionProducto,
@@ -35,7 +35,7 @@ router.post(
 router.put(
   "/:id",
   verificarJWT,
-  EsAdmin,
+  esAdministrador,
   validacionID,
   upload.single("imagen"),
   errorMulter,
@@ -43,6 +43,6 @@ router.put(
   editarProducto,
 );
 
-router.delete("/:id", verificarJWT, EsAdmin, validacionID, eliminarProducto);
+router.delete("/:id", verificarJWT, esAdministrador, validacionID, eliminarProducto);
 
 export default router;

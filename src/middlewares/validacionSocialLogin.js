@@ -7,7 +7,7 @@ const validacionSocialLogin = [
     .trim()
     .notEmpty()
     .withMessage("El proveedor social es obligatorio")
-    .isIn(["google", "facebook"])
+    .isIn(["google"])
     .withMessage("El proveedor social no es valido"),
   body("idToken")
     .trim()

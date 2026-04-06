@@ -15,10 +15,21 @@ import { verifyFirebaseIdToken } from "../services/firebaseAdmin.service.js";
 const SALT_ROUNDS = 10;
 const SOCIAL_PROVIDER_MAP = {
   google: "google.com",
-  facebook: "facebook.com",
 };
 const SOCIAL_PHONE_REQUIRED_MESSAGE =
   "Necesitamos tu numero de WhatsApp para completar el acceso.";
+const SOCIAL_EMAIL_REQUIRED_MESSAGE =
+  "La cuenta social debe compartir un email para continuar.";
+const SOCIAL_VERIFIED_EMAIL_REQUIRED_MESSAGE =
+  "La cuenta social debe tener un email verificado para continuar.";
+const SOCIAL_INVALID_AUTH_MESSAGE =
+  "La autenticacion social no es valida o ya vencio.";
+const SOCIAL_VALIDATION_ERROR_MESSAGE =
+  "No se pudieron validar los datos de tu cuenta social.";
+const SOCIAL_DUPLICATE_ACCOUNT_MESSAGE =
+  "Ya existe otra cuenta con esos datos de acceso social. Intenta cerrar sesion y volver a entrar con Google.";
+const SOCIAL_UNAVAILABLE_MESSAGE =
+  "La autenticacion social no esta disponible en este momento.";
 const PASSWORD_RESET_SUCCESS_MESSAGE =
   "Si el email existe, te enviaremos un enlace para restablecer tu contrasena.";
 const USER_NAME_MIN_LENGTH = 2;
@@ -125,6 +136,43 @@ const responderCuentaInactiva = (res) =>
     mensaje: "Cuenta suspendida",
   });
 
+const obtenerIdNormalizado = (usuario) =>
+  usuario?._id ? String(usuario._id).trim() : "";
+const sonElMismoUsuario = (usuarioA, usuarioB) =>
+  Boolean(obtenerIdNormalizado(usuarioA)) &&
+  obtenerIdNormalizado(usuarioA) === obtenerIdNormalizado(usuarioB);
+
+const sincronizarCuentaSocialExistente = (
+  usuario,
+  { firebaseUid, firebaseProvider, perfil, telefono, email },
+) => {
+  // Si Firebase confirma el email verificado, usamos esa identidad como la
+  // referencia vigente para evitar bloqueos por UIDs viejos o cuentas vinculadas.
+  usuario.firebaseUid = firebaseUid;
+  usuario.firebaseProvider = firebaseProvider;
+
+  if (email && normalizarEmail(usuario.email) !== email) {
+    usuario.email = email;
+  }
+
+  if (!normalizarTexto(usuario.nombre)) {
+    usuario.nombre = perfil.nombre;
+  }
+
+  if (!normalizarTexto(usuario.apellido)) {
+    usuario.apellido = perfil.apellido;
+  }
+
+  if (!normalizarTelefono(usuario.telefono) && telefono) {
+    usuario.telefono = telefono;
+  }
+};
+
+const desvincularCuentaSocial = (usuario) => {
+  usuario.firebaseUid = null;
+  usuario.firebaseProvider = null;
+};
+
 export const crearUsuario = async (req, res) => {
   try {
     const { nombre, apellido, telefono, password } = req.body;
@@ -159,7 +207,7 @@ export const crearUsuario = async (req, res) => {
   }
 };
 
-export const login = async (req, res) => {
+export const iniciarSesion = async (req, res) => {
   try {
     const email = normalizarEmail(req.body.email);
     const { password } = req.body;
@@ -268,7 +316,7 @@ export const restablecerPassword = async (req, res) => {
   }
 };
 
-export const loginSocial = async (req, res) => {
+export const iniciarSesionSocial = async (req, res) => {
   try {
     const requestedProvider = normalizarFirebaseProvider(req.body.provider);
     const expectedFirebaseProvider = SOCIAL_PROVIDER_MAP[requestedProvider];
@@ -292,47 +340,45 @@ export const loginSocial = async (req, res) => {
 
     if (!email) {
       return res.status(400).json({
-        mensaje:
-          "La cuenta social debe compartir un email para continuar.",
+        mensaje: SOCIAL_EMAIL_REQUIRED_MESSAGE,
       });
     }
 
     if (decodedToken.email_verified !== true) {
       return res.status(400).json({
-        mensaje:
-          "La cuenta social debe tener un email verificado para continuar.",
+        mensaje: SOCIAL_VERIFIED_EMAIL_REQUIRED_MESSAGE,
       });
     }
 
     const firebaseUid = normalizarTexto(decodedToken.uid);
     const telefono = normalizarTelefono(req.body.telefono);
     const perfil = {
+      email,
       ...obtenerPerfilBasicoSocial({
         email,
         name: decodedToken.name,
       }),
-      email,
-      provider: requestedProvider,
     };
 
-    let usuario = await Usuario.findOne({ firebaseUid });
+    const [usuarioPorFirebaseUid, usuarioPorEmail] = await Promise.all([
+      Usuario.findOne({ firebaseUid }),
+      Usuario.findOne({ email }),
+    ]);
 
-    if (!usuario) {
-      usuario = await Usuario.findOne({ email });
+    let usuario = usuarioPorFirebaseUid || usuarioPorEmail || null;
+
+    if (
+      usuarioPorFirebaseUid &&
+      usuarioPorEmail &&
+      !sonElMismoUsuario(usuarioPorFirebaseUid, usuarioPorEmail)
+    ) {
+      desvincularCuentaSocial(usuarioPorFirebaseUid);
+      await usuarioPorFirebaseUid.save();
+      usuario = usuarioPorEmail;
     }
 
     if (usuario && !usuarioEstaActivo(usuario)) {
       return responderCuentaInactiva(res);
-    }
-
-    if (
-      usuario?.firebaseUid &&
-      usuario.firebaseUid !== firebaseUid
-    ) {
-      return res.status(409).json({
-        mensaje:
-          "El email ya esta vinculado a otra cuenta de acceso social.",
-      });
     }
 
     if (!telefono && !normalizarTelefono(usuario?.telefono)) {
@@ -352,25 +398,13 @@ export const loginSocial = async (req, res) => {
         }),
       );
     } else {
-      if (!usuario.firebaseUid) {
-        usuario.firebaseUid = firebaseUid;
-      }
-
-      if (!usuario.firebaseProvider) {
-        usuario.firebaseProvider = firebaseProvider;
-      }
-
-      if (!normalizarTexto(usuario.nombre)) {
-        usuario.nombre = perfil.nombre;
-      }
-
-      if (!normalizarTexto(usuario.apellido)) {
-        usuario.apellido = perfil.apellido;
-      }
-
-      if (!normalizarTelefono(usuario.telefono)) {
-        usuario.telefono = telefono;
-      }
+      sincronizarCuentaSocialExistente(usuario, {
+        firebaseUid,
+        firebaseProvider,
+        perfil,
+        telefono,
+        email,
+      });
     }
 
     await usuario.save();
@@ -384,19 +418,30 @@ export const loginSocial = async (req, res) => {
     const firebaseErrorCode = String(error?.code || "");
     const isFirebaseAuthError = firebaseErrorCode.startsWith("auth/");
     const isValidationError = error?.name === "ValidationError";
+    const isDuplicateKeyError =
+      error?.name === "MongoServerError" && Number(error?.code) === 11000;
     const validationMessages = Object.values(error?.errors || {})
       .map((validationError) => validationError?.message)
       .filter(Boolean);
     const status = Number(
-      error?.statusCode || (isFirebaseAuthError ? 401 : isValidationError ? 400 : 500),
+      error?.statusCode ||
+        (isFirebaseAuthError
+          ? 401
+          : isValidationError
+          ? 400
+          : isDuplicateKeyError
+          ? 409
+          : 500),
     );
     const mensaje =
       isFirebaseAuthError
-        ? "La autenticacion social no es valida o ya vencio."
+        ? SOCIAL_INVALID_AUTH_MESSAGE
         : isValidationError
-        ? validationMessages[0] || "No se pudieron validar los datos de tu cuenta social."
+        ? validationMessages[0] || SOCIAL_VALIDATION_ERROR_MESSAGE
+        : isDuplicateKeyError
+        ? SOCIAL_DUPLICATE_ACCOUNT_MESSAGE
         : status === 500
-        ? "La autenticacion social no esta disponible en este momento."
+        ? SOCIAL_UNAVAILABLE_MESSAGE
         : "No se pudo completar el acceso social.";
 
     return responderError(res, status, mensaje, isValidationError ? null : error);

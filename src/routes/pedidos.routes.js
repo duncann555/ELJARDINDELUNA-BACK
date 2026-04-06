@@ -6,7 +6,7 @@ import {
 } from "../controllers/pedidos.controllers.js";
 
 import verificarJWT from "../middlewares/verificarJWT.js";
-import { EsAdmin } from "../middlewares/verificarRoles.js";
+import { esAdministrador } from "../middlewares/verificarRoles.js";
 import validacionPedido from "../middlewares/validacionPedido.js";
 import validacionCambioEstado from "../middlewares/validacionCambioEstado.js";
 import validacionID from "../middlewares/validacionID.js";
@@ -30,7 +30,7 @@ router.get("/", verificarJWT, listarPedidos);
 router.patch(
   "/:id",
   verificarJWT,
-  EsAdmin,
+  esAdministrador,
   validacionID,
   validacionCambioEstado,
   actualizarEstadoPedido,

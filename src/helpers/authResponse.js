@@ -7,6 +7,7 @@ export const serializarUsuarioAuth = (usuario) => ({
   email: usuario.email,
   telefono: usuario.telefono,
   rol: usuario.rol,
+  estado: usuario.estado,
   carrito: usuario.carrito || [],
 });
 

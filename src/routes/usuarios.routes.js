@@ -1,8 +1,8 @@
 import { Router } from "express";
 import {
   crearUsuario,
-  login,
-  loginSocial,
+  iniciarSesion,
+  iniciarSesionSocial,
   solicitarRecuperacionPassword,
   restablecerPassword,
   listarUsuarios,
@@ -12,7 +12,7 @@ import {
   actualizarCarrito,
 } from "../controllers/usuarios.controllers.js";
 import verificarJWT from "../middlewares/verificarJWT.js";
-import { EsAdmin } from "../middlewares/verificarRoles.js";
+import { esAdministrador } from "../middlewares/verificarRoles.js";
 import validacionUsuarios from "../middlewares/validacionUsuarios.js";
 import validacionLogin from "../middlewares/validacionLogin.js";
 import validarEstadoUsuario from "../middlewares/validarEstadoUsuario.js";
@@ -33,13 +33,37 @@ const authRateLimit = createRateLimiter({
 });
 
 router.post("/", authRateLimit, validacionUsuarios, crearUsuario);
-router.post("/login", authRateLimit, validacionLogin, login);
-router.post("/social-login", authRateLimit, validacionSocialLogin, loginSocial);
+router.post("/iniciar-sesion", authRateLimit, validacionLogin, iniciarSesion);
+router.post("/login", authRateLimit, validacionLogin, iniciarSesion);
+router.post(
+  "/iniciar-sesion-social",
+  authRateLimit,
+  validacionSocialLogin,
+  iniciarSesionSocial,
+);
+router.post(
+  "/social-login",
+  authRateLimit,
+  validacionSocialLogin,
+  iniciarSesionSocial,
+);
+router.post(
+  "/recuperar-password",
+  authRateLimit,
+  validacionRecuperarPassword,
+  solicitarRecuperacionPassword,
+);
 router.post(
   "/forgot-password",
   authRateLimit,
   validacionRecuperarPassword,
   solicitarRecuperacionPassword,
+);
+router.post(
+  "/restablecer-password",
+  authRateLimit,
+  validacionResetPassword,
+  restablecerPassword,
 );
 router.post(
   "/reset-password",
@@ -48,7 +72,7 @@ router.post(
   restablecerPassword,
 );
 
-router.get("/", verificarJWT, EsAdmin, listarUsuarios);
+router.get("/", verificarJWT, esAdministrador, listarUsuarios);
 router.get(
   "/:id",
   verificarJWT,
@@ -60,13 +84,13 @@ router.get(
 router.patch(
   "/:id",
   verificarJWT,
-  EsAdmin,
+  esAdministrador,
   validacionID,
   validarEstadoUsuario,
   cambiarEstadoUsuario,
 );
 
-router.delete("/:id", verificarJWT, EsAdmin, validacionID, eliminarUsuario);
+router.delete("/:id", verificarJWT, esAdministrador, validacionID, eliminarUsuario);
 
 router.put(
   "/carrito/:id",
