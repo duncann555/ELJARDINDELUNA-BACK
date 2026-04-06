@@ -138,3 +138,47 @@ export const actualizarEstadoPedido = async (req, res) => {
     await session.endSession();
   }
 };
+
+export const eliminarPedido = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    const pedido = await Pedido.findById(req.params.id);
+
+    if (!pedido) {
+      return res.status(404).json({ mensaje: "Pedido no encontrado" });
+    }
+
+    await session.withTransaction(async () => {
+      const pedidoEnTransaccion = await Pedido.findById(req.params.id).session(
+        session,
+      );
+
+      if (!pedidoEnTransaccion) {
+        throw new Error("Pedido no encontrado");
+      }
+
+      await sincronizarInventarioPedido({
+        pedido: pedidoEnTransaccion,
+        session,
+        debeDescontar: false,
+      });
+
+      await pedidoEnTransaccion.deleteOne({ session });
+    });
+
+    res.status(200).json({
+      mensaje: "Pedido eliminado correctamente",
+    });
+  } catch (error) {
+    if (error?.status) {
+      return res.status(error.status).json({
+        mensaje: error.publicMessage || error.message,
+      });
+    }
+
+    return responderError(res, 500, "Error al eliminar pedido", error);
+  } finally {
+    await session.endSession();
+  }
+};

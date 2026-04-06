@@ -3,6 +3,7 @@ import {
   crearPedido,
   listarPedidos,
   actualizarEstadoPedido,
+  eliminarPedido,
 } from "../controllers/pedidos.controllers.js";
 
 import verificarJWT from "../middlewares/verificarJWT.js";
@@ -34,6 +35,14 @@ router.patch(
   validacionID,
   validacionCambioEstado,
   actualizarEstadoPedido,
+);
+
+router.delete(
+  "/:id",
+  verificarJWT,
+  esAdministrador,
+  validacionID,
+  eliminarPedido,
 );
 
 export default router;
