@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  cambiarEstadoProducto,
   crearProducto,
   listarProductos,
   listarProductosAdmin,
@@ -14,6 +15,7 @@ import upload from "../helpers/upload.js";
 import errorMulter from "../middlewares/ErrorMulter.js";
 import { validacionProducto } from "../middlewares/validacionProducto.js";
 import validacionID from "../middlewares/validacionID.js";
+import validarEstadoProducto from "../middlewares/validarEstadoProducto.js";
 
 const router = Router();
 
@@ -41,6 +43,15 @@ router.put(
   errorMulter,
   validacionProducto,
   editarProducto,
+);
+
+router.patch(
+  "/:id/estado",
+  verificarJWT,
+  esAdministrador,
+  validacionID,
+  validarEstadoProducto,
+  cambiarEstadoProducto,
 );
 
 router.delete("/:id", verificarJWT, esAdministrador, validacionID, eliminarProducto);

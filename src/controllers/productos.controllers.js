@@ -10,7 +10,6 @@ import {
 const IMAGEN_PLACEHOLDER = "https://placehold.co/600x400?text=Sin+Imagen";
 const FILTRO_PRODUCTO_PUBLICO = {
   estado: "Activo",
-  stock: { $gt: 0 },
 };
 
 const construirPayloadProducto = (body, imagenUrl) => ({
@@ -138,6 +137,31 @@ export const editarProducto = async (req, res) => {
     });
   } catch (error) {
     return responderError(res, 500, "Error al editar el producto", error);
+  }
+};
+
+export const cambiarEstadoProducto = async (req, res) => {
+  try {
+    const producto = await Producto.findById(req.params.id);
+
+    if (!producto) {
+      return res.status(404).json({ mensaje: "Producto no encontrado" });
+    }
+
+    producto.estado = req.body.estado;
+    await producto.save();
+
+    return res.status(200).json({
+      mensaje: "Estado del producto actualizado correctamente",
+      producto: serializarProducto(producto),
+    });
+  } catch (error) {
+    return responderError(
+      res,
+      500,
+      "Error al actualizar el estado del producto",
+      error,
+    );
   }
 };
 
