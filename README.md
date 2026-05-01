@@ -42,11 +42,7 @@ Hoy tu frontend productivo principal esta publicado en:
 
 - `https://www.eljardindeluna.ar`
 
-Y mantienes ademas el dominio estable de Vercel:
-
-- `https://eljardindeluna-frontend.vercel.app`
-
-Por eso el backend queda preparado para usar el dominio propio como `FRONTEND_URL` y conservar `vercel.app` dentro de `CORS_ORIGINS` para compatibilidad con previews.
+El backend queda preparado para usar el dominio propio como `FRONTEND_URL`.
 
 Si luego conectas tu dominio propio, lo ideal seria:
 
@@ -61,6 +57,8 @@ No es obligatorio usar `api`, pero es la opcion mas limpia para separar frontend
 
 - `MONGODB`
 - `SECRETJWT`
+- `MP_ACCESS_TOKEN` con credencial productiva `APP_USR-...`
+- `MP_ENVIRONMENT=production`
 
 ### Recomendadas en produccion
 
@@ -69,7 +67,6 @@ No es obligatorio usar `api`, pero es la opcion mas limpia para separar frontend
 
 ### Necesarias segun funcionalidad
 
-- `MP_ACCESS_TOKEN`
 - `CLOUDINARY_CLOUD_NAME`
 - `CLOUDINARY_API_KEY`
 - `CLOUDINARY_API_SECRET`
@@ -80,7 +77,8 @@ No es obligatorio usar `api`, pero es la opcion mas limpia para separar frontend
 
 - `NODE_ENV=production`
 - `FRONTEND_URL=https://www.eljardindeluna.ar`
-- `CORS_ORIGINS=https://www.eljardindeluna.ar,https://eljardindeluna.ar,https://eljardindeluna-frontend.vercel.app`
+- `MP_ENVIRONMENT=production`
+- `CORS_ORIGINS=https://www.eljardindeluna.ar,https://eljardindeluna.ar`
 - `ALLOW_REQUESTS_WITHOUT_ORIGIN=false`
 - `FIXED_SHIPPING_COST=15000`
 
@@ -99,13 +97,15 @@ No es obligatorio usar `api`, pero es la opcion mas limpia para separar frontend
 - `MP_WEBHOOK_URL`
 - `MP_NOTIFICATION_URL`
 
+`MP_WEBHOOK_URL` o `MP_NOTIFICATION_URL`, si se configuran en produccion, deben apuntar al backend publico con HTTPS. No uses localhost para webhooks productivos.
+
 ## Frontend y CORS
 
 Para tu caso, en Render deberias dejar como minimo:
 
 ```bash
 FRONTEND_URL=https://www.eljardindeluna.ar
-CORS_ORIGINS=https://www.eljardindeluna.ar,https://eljardindeluna.ar,https://eljardindeluna-frontend.vercel.app
+CORS_ORIGINS=https://www.eljardindeluna.ar,https://eljardindeluna.ar
 ALLOW_REQUESTS_WITHOUT_ORIGIN=false
 ```
 
@@ -115,14 +115,15 @@ Con esto:
 
 - el reset de contraseÃ±a vuelve al frontend real que hoy esta online
 - Mercado Pago arma sus `back_urls` con tu frontend real
-- CORS acepta el dominio actual de Vercel y deja listo el dominio propio
+- CORS acepta el dominio oficial de la tienda
+- En produccion no pruebes pagandote con la misma cuenta Mercado Pago del vendedor. Para una prueba real usa otra cuenta compradora real. Para sandbox se usan comprador y vendedor de prueba, sin mezclar con cuentas reales.
 
 ## Cuando actives el dominio propio
 
 Si en Render falta `FRONTEND_URL` o se carga una URL local como `http://localhost:5173`, el backend ahora usa por defecto:
 
 ```bash
-https://eljardindeluna-frontend.vercel.app
+https://www.eljardindeluna.ar
 ```
 
 Si falta `ADMIN_EMAIL`, el backend arranca igual, pero no podra excluir automaticamente la cuenta admin del listado de usuarios.
@@ -131,7 +132,7 @@ Cuando `https://www.eljardindeluna.ar` ya apunte efectivamente a Vercel, convien
 
 ```bash
 FRONTEND_URL=https://www.eljardindeluna.ar
-CORS_ORIGINS=https://www.eljardindeluna.ar,https://eljardindeluna.ar,https://eljardindeluna-frontend.vercel.app
+CORS_ORIGINS=https://www.eljardindeluna.ar,https://eljardindeluna.ar
 ```
 
 Asi mantienes compatibilidad con el dominio nuevo sin romper el dominio estable de Vercel.

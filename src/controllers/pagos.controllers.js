@@ -26,6 +26,14 @@ const getMercadoPagoClient = () => {
     throw error;
   }
 
+  if (esMercadoPagoProduccion() && !accessToken.startsWith("APP_USR-")) {
+    const error = new Error("Mercado Pago debe usar credenciales productivas");
+    error.status = 503;
+    error.publicMessage =
+      "El medio de pago no esta disponible en este momento";
+    throw error;
+  }
+
   return new MercadoPagoConfig({ accessToken });
 };
 
@@ -57,8 +65,71 @@ const buildPaymentError = (status, mensaje) => {
 const normalizarUrlBase = (value) =>
   String(value || "").trim().replace(/\/+$/, "");
 
+const esMercadoPagoProduccion = () =>
+  String(process.env.MP_ENVIRONMENT || "").trim().toLowerCase() ===
+  "production";
+
+const getMercadoPagoTokenPrefix = () => {
+  const token = String(process.env.MP_ACCESS_TOKEN || "").trim();
+
+  if (!token) return "missing";
+  if (token.startsWith("APP_USR-")) return "APP_USR";
+  if (token.startsWith("TEST")) return "TEST";
+
+  return token.slice(0, 4) || "unknown";
+};
+
+const logMercadoPagoConfig = () => {
+  console.log("MP token exists:", Boolean(process.env.MP_ACCESS_TOKEN));
+  console.log("MP token prefix:", getMercadoPagoTokenPrefix());
+  console.log("MP environment:", process.env.MP_ENVIRONMENT || "");
+  console.log("MP production mode:", esMercadoPagoProduccion());
+};
+
 const esHostnameLocal = (hostname) =>
   hostname === "localhost" || hostname === "127.0.0.1";
+
+const validarUrlPublicaProduccion = (value, key) => {
+  const url = normalizarUrlBase(value);
+
+  if (!url || !esMercadoPagoProduccion()) {
+    return url;
+  }
+
+  let parsedUrl;
+
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    const error = new Error(`${key} no contiene una URL valida`);
+    error.status = 500;
+    error.publicMessage = "Mercado Pago no esta configurado correctamente";
+    throw error;
+  }
+
+  if (parsedUrl.protocol !== "https:" || esHostnameLocal(parsedUrl.hostname)) {
+    const error = new Error(
+      `${key} debe apuntar a una URL productiva con HTTPS`,
+    );
+    error.status = 500;
+    error.publicMessage = "Mercado Pago no esta configurado correctamente";
+    throw error;
+  }
+
+  return url;
+};
+
+const resolverFrontendUrl = () => {
+  const configuredUrl = normalizarUrlBase(process.env.FRONTEND_URL);
+  const fallbackUrl = esMercadoPagoProduccion()
+    ? "https://www.eljardindeluna.ar"
+    : "http://localhost:5173";
+
+  return validarUrlPublicaProduccion(
+    configuredUrl || fallbackUrl,
+    "FRONTEND_URL",
+  );
+};
 
 const resolverBackendBaseUrl = (req) => {
   const configuredUrl = normalizarUrlBase(
@@ -307,30 +378,31 @@ export const crearPreferencia = async (req, res) => {
       });
     }
 
-    if (pedido.pago?.preferenceId) {
-      return res.status(200).json({
-        id: pedido.pago.preferenceId,
-      });
-    }
-
-    const frontUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const frontUrl = resolverFrontendUrl();
     const esEntornoLocal =
       frontUrl.includes("localhost") || frontUrl.includes("127.0.0.1");
+    const configuredNotificationUrl = process.env.MP_WEBHOOK_URL
+      ? validarUrlPublicaProduccion(process.env.MP_WEBHOOK_URL, "MP_WEBHOOK_URL")
+      : validarUrlPublicaProduccion(
+          process.env.MP_NOTIFICATION_URL,
+          "MP_NOTIFICATION_URL",
+        );
     const notificationUrl =
-      normalizarUrlBase(
-        process.env.MP_WEBHOOK_URL || process.env.MP_NOTIFICATION_URL,
-      ) ||
+      configuredNotificationUrl ||
       (() => {
-        const backendBaseUrl = resolverBackendBaseUrl(req);
+        const backendBaseUrl = validarUrlPublicaProduccion(
+          resolverBackendBaseUrl(req),
+          "BACKEND_PUBLIC_URL",
+        );
         return backendBaseUrl ? `${backendBaseUrl}/api/pagos/webhook` : "";
       })();
 
     const body = {
       items: crearItemsPreferencia(pedido),
       back_urls: {
-        success: `${frontUrl}/pago-exitoso`,
-        failure: `${frontUrl}/carrito`,
-        pending: `${frontUrl}/pago-pendiente`,
+        success: `${frontUrl}/pago/success`,
+        failure: `${frontUrl}/pago/failure`,
+        pending: `${frontUrl}/pago/pending`,
       },
       external_reference: pedido._id.toString(),
       metadata: {
@@ -346,17 +418,24 @@ export const crearPreferencia = async (req, res) => {
       body.auto_return = "approved";
     }
 
+    logMercadoPagoConfig();
+
     const preference = getPreferenceClient();
     const result = await preference.create({ body });
 
     pedido.pago.preferenceId = result.id;
     await pedido.save();
 
-    return res.status(200).json({
+    const checkoutUrl = result.init_point;
+
+    console.log("MP checkout URL selected:", "init_point");
+
+    const responseBody = {
       id: result.id,
-      init_point: result.init_point,
-      sandbox_init_point: result.sandbox_init_point,
-    });
+      init_point: checkoutUrl,
+    };
+
+    return res.status(200).json(responseBody);
   } catch (error) {
     return responderError(
       res,

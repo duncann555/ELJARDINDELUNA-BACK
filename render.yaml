@@ -12,7 +12,7 @@ services:
       - key: FRONTEND_URL
         value: https://www.eljardindeluna.ar
       - key: CORS_ORIGINS
-        value: https://www.eljardindeluna.ar,https://eljardindeluna.ar,https://eljardindeluna-frontend.vercel.app
+        value: https://www.eljardindeluna.ar,https://eljardindeluna.ar
       - key: ALLOW_REQUESTS_WITHOUT_ORIGIN
         value: "false"
       - key: FIXED_SHIPPING_COST
@@ -23,9 +23,13 @@ services:
         sync: false
       - key: ADMIN_EMAIL
         sync: false
+      - key: MP_ENVIRONMENT
+        value: production
       - key: MP_ACCESS_TOKEN
         sync: false
       - key: MP_WEBHOOK_URL
+        sync: false
+      - key: BACKEND_PUBLIC_URL
         sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false

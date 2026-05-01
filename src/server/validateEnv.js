@@ -1,9 +1,9 @@
 const hasValue = (key) => String(process.env[key] || "").trim().length > 0;
 
 const DEFAULT_PRODUCTION_FRONTEND_URL =
-  "https://eljardindeluna-frontend.vercel.app";
+  "https://www.eljardindeluna.ar";
 
-const PRODUCTION_REQUIRED_ENV = ["MONGODB", "SECRETJWT"];
+const PRODUCTION_REQUIRED_ENV = ["MONGODB", "SECRETJWT", "MP_ACCESS_TOKEN"];
 
 const normalizeUrlValue = (value, { allowLocalhost = false } = {}) => {
   const rawValue = String(value || "").trim().replace(/\/+$/, "");
@@ -79,6 +79,9 @@ const ensureProductionFrontendUrl = () => {
 
 export const validateRuntimeEnv = () => {
   const isProduction = process.env.NODE_ENV === "production";
+  const isMercadoPagoProduction =
+    String(process.env.MP_ENVIRONMENT || "").trim().toLowerCase() ===
+    "production";
   const missingRequired = PRODUCTION_REQUIRED_ENV.filter((key) => !hasValue(key));
 
   if (isProduction && missingRequired.length > 0) {
@@ -97,6 +100,17 @@ export const validateRuntimeEnv = () => {
     console.warn(
       "[env] MP_ACCESS_TOKEN no esta configurado. Mercado Pago no podra iniciar cobros.",
     );
+  } else if (
+    (isProduction || isMercadoPagoProduction) &&
+    !String(process.env.MP_ACCESS_TOKEN).trim().startsWith("APP_USR-")
+  ) {
+    throw new Error(
+      "MP_ACCESS_TOKEN debe ser una credencial productiva APP_USR en produccion",
+    );
+  }
+
+  if (isProduction && !isMercadoPagoProduction) {
+    throw new Error("MP_ENVIRONMENT=production es obligatorio en produccion");
   }
 
   if (
@@ -111,6 +125,9 @@ export const validateRuntimeEnv = () => {
 
   if (isProduction) {
     ensureProductionFrontendUrl();
+    validateHttpsUrl("BACKEND_PUBLIC_URL", { allowLocalhost: false });
+    validateHttpsUrl("MP_WEBHOOK_URL", { allowLocalhost: false });
+    validateHttpsUrl("MP_NOTIFICATION_URL", { allowLocalhost: false });
   } else {
     validateHttpsUrl("FRONTEND_URL", { allowLocalhost: true });
   }

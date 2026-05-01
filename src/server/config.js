@@ -134,41 +134,6 @@ const isAllowedConfiguredOrigin = (origin) => {
   });
 };
 
-const isAllowedVercelPreviewOrigin = (origin) => {
-  const requestedUrl = parseOriginUrl(origin);
-
-  if (!requestedUrl || requestedUrl.protocol !== "https:") {
-    return false;
-  }
-
-  if (!requestedUrl.hostname.endsWith(".vercel.app")) {
-    return false;
-  }
-
-  return uniqueAllowedOrigins.some((allowedOrigin) => {
-    const allowedUrl = parseOriginUrl(allowedOrigin);
-
-    if (!allowedUrl || allowedUrl.protocol !== "https:") {
-      return false;
-    }
-
-    if (!allowedUrl.hostname.endsWith(".vercel.app")) {
-      return false;
-    }
-
-    const allowedProjectSlug = allowedUrl.hostname.replace(/\.vercel\.app$/i, "");
-    const requestedProjectSlug = requestedUrl.hostname.replace(
-      /\.vercel\.app$/i,
-      "",
-    );
-
-    return (
-      requestedProjectSlug === allowedProjectSlug ||
-      requestedProjectSlug.startsWith(`${allowedProjectSlug}-`)
-    );
-  });
-};
-
 const shouldUseCustomCors = uniqueAllowedOrigins.length > 0;
 
 const corsOptions = shouldUseCustomCors
@@ -184,8 +149,7 @@ const corsOptions = shouldUseCustomCors
 
         if (
           isAllowedLocalDevelopmentOrigin(normalizedOrigin) ||
-          isAllowedConfiguredOrigin(normalizedOrigin) ||
-          isAllowedVercelPreviewOrigin(normalizedOrigin)
+          isAllowedConfiguredOrigin(normalizedOrigin)
         ) {
           return callback(null, true);
         }
@@ -273,10 +237,8 @@ export default class Server {
       this.app.use(morgan("dev"));
     }
 
-    if (!process.env.VERCEL) {
-      const __dirname = dirname(fileURLToPath(import.meta.url));
-      this.app.use(express.static(__dirname + "/../../public"));
-    }
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    this.app.use(express.static(__dirname + "/../../public"));
   }
 
   routes() {
