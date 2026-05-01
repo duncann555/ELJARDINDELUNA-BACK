@@ -21,16 +21,9 @@ export const TIPOS_ENVIO_PEDIDO = [
 export const COSTO_ENVIO_ANDREANI = Number(
   process.env.COSTO_ENVIO_ANDREANI || process.env.FIXED_SHIPPING_COST || 9500,
 );
-export const LOCALIDADES_CADETE = ["San Miguel de Tucuman", "Yerba Buena"];
 
 const normalizarTexto = (value) =>
   typeof value === "string" ? value.trim() : "";
-
-const normalizarLocalidad = (value) =>
-  normalizarTexto(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
 
 const normalizarNumero = (value, fallback = 0) => {
   const numero = Number(value);
@@ -60,14 +53,6 @@ export const normalizarTipoEnvio = (value) => {
     : TIPO_ENVIO_ANDREANI_DOMICILIO;
 };
 
-export const localidadPermiteCadete = (ciudad) => {
-  const ciudadNormalizada = normalizarLocalidad(ciudad);
-
-  return LOCALIDADES_CADETE.some(
-    (localidad) => normalizarLocalidad(localidad) === ciudadNormalizada,
-  );
-};
-
 const obtenerCostoEnvio = (tipo) =>
   tipo === TIPO_ENVIO_CADETE_LOCAL ? 0 : COSTO_ENVIO_ANDREANI;
 
@@ -89,22 +74,33 @@ export const validarDatosEnvio = (envio) => {
   const tipo = normalizarTipoEnvio(envio?.tipo);
   const envioNormalizado = {
     tipo,
-    provincia: normalizarTexto(envio?.provincia),
-    ciudad: normalizarTexto(envio?.ciudad),
-    domicilio: normalizarTexto(envio?.domicilio),
+    provincia:
+      tipo === TIPO_ENVIO_CADETE_LOCAL ? "" : normalizarTexto(envio?.provincia),
+    ciudad:
+      tipo === TIPO_ENVIO_CADETE_LOCAL ? "" : normalizarTexto(envio?.ciudad),
+    domicilio:
+      tipo === TIPO_ENVIO_CADETE_LOCAL ? "" : normalizarTexto(envio?.domicilio),
     celular: String(envio?.celular || "").replace(/\D/g, ""),
-    entreCalles: normalizarTexto(envio?.entreCalles),
+    entreCalles:
+      tipo === TIPO_ENVIO_CADETE_LOCAL ? "" : normalizarTexto(envio?.entreCalles),
     referencia: normalizarTexto(envio?.referencia),
-    codigoPostal: normalizarTexto(envio?.codigoPostal),
-    sucursalAndreani: normalizarTexto(envio?.sucursalAndreani),
-    horarioConveniente: normalizarTexto(envio?.horarioConveniente),
+    codigoPostal:
+      tipo === TIPO_ENVIO_CADETE_LOCAL ? "" : normalizarTexto(envio?.codigoPostal),
+    sucursalAndreani:
+      tipo === TIPO_ENVIO_CADETE_LOCAL
+        ? ""
+        : normalizarTexto(envio?.sucursalAndreani),
+    horarioConveniente:
+      tipo === TIPO_ENVIO_CADETE_LOCAL
+        ? ""
+        : normalizarTexto(envio?.horarioConveniente),
   };
 
   if (tipo !== TIPO_ENVIO_CADETE_LOCAL && !envioNormalizado.provincia) {
     throw new Error("La provincia es obligatoria");
   }
 
-  if (!envioNormalizado.ciudad) {
+  if (tipo !== TIPO_ENVIO_CADETE_LOCAL && !envioNormalizado.ciudad) {
     throw new Error("La ciudad es obligatoria");
   }
 
@@ -116,7 +112,11 @@ export const validarDatosEnvio = (envio) => {
   }
 
   if (!envioNormalizado.celular) {
-    throw new Error("El celular es obligatorio");
+    throw new Error(
+      tipo === TIPO_ENVIO_CADETE_LOCAL
+        ? "El celular / WhatsApp es obligatorio para coordinar la entrega."
+        : "El celular es obligatorio",
+    );
   }
 
   if (!/^\d{8,15}$/.test(envioNormalizado.celular)) {
@@ -129,12 +129,6 @@ export const validarDatosEnvio = (envio) => {
 
   if (tipo === TIPO_ENVIO_ANDREANI_SUCURSAL && !envioNormalizado.sucursalAndreani) {
     throw new Error("La sucursal Andreani es obligatoria");
-  }
-
-  if (tipo === TIPO_ENVIO_CADETE_LOCAL) {
-    if (!localidadPermiteCadete(envioNormalizado.ciudad)) {
-      throw new Error("Acordar con el vendedor solo esta disponible para San Miguel de Tucuman y Yerba Buena");
-    }
   }
 
   return envioNormalizado;

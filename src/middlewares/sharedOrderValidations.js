@@ -1,12 +1,10 @@
 import { body } from "express-validator";
 import { METODOS_PAGO_PEDIDO } from "../constants/pagos.js";
 import {
-  LOCALIDADES_CADETE,
   TIPO_ENVIO_ANDREANI_DOMICILIO,
   TIPO_ENVIO_ANDREANI_SUCURSAL,
   TIPO_ENVIO_CADETE_LOCAL,
   TIPOS_ENVIO_PEDIDO,
-  localidadPermiteCadete,
   normalizarTipoEnvio,
 } from "../services/envios.service.js";
 
@@ -52,15 +50,19 @@ export const crearValidacionesDatosEnvio = ({ maxDomicilio = 160 } = {}) => [
         throw new Error("El tipo de envio no es valido");
       }
 
-      if (!ciudad || ciudad.length < 2 || ciudad.length > 80) {
-        throw new Error("La ciudad es obligatoria");
-      }
-
       if (!TELEFONO_REGEX.test(celular)) {
-        throw new Error("El celular no es valido");
+        throw new Error(
+          tipo === TIPO_ENVIO_CADETE_LOCAL
+            ? "El celular / WhatsApp es obligatorio para coordinar la entrega."
+            : "El celular no es valido",
+        );
       }
 
       if (tipo !== TIPO_ENVIO_CADETE_LOCAL) {
+        if (!ciudad || ciudad.length < 2 || ciudad.length > 80) {
+          throw new Error("La ciudad es obligatoria");
+        }
+
         if (!provincia || provincia.length < 2 || provincia.length > 80) {
           throw new Error("La provincia es obligatoria");
         }
@@ -82,14 +84,6 @@ export const crearValidacionesDatosEnvio = ({ maxDomicilio = 160 } = {}) => [
         (sucursalAndreani.length < 3 || sucursalAndreani.length > 160)
       ) {
         throw new Error("La sucursal Andreani es obligatoria");
-      }
-
-      if (tipo === TIPO_ENVIO_CADETE_LOCAL) {
-        if (!localidadPermiteCadete(ciudad)) {
-          throw new Error(
-            `Acordar con el vendedor solo esta disponible para ${LOCALIDADES_CADETE.join(" y ")}`,
-          );
-        }
       }
 
       if (entreCalles.length > 120) {
