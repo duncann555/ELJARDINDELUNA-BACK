@@ -57,6 +57,7 @@ No es obligatorio usar `api`, pero es la opcion mas limpia para separar frontend
 
 - `MONGODB`
 - `SECRETJWT`
+- `ADMIN_PASSWORD`
 - `MP_ACCESS_TOKEN` con credencial productiva `APP_USR-...`
 - `MP_ENVIRONMENT=production`
 
@@ -64,6 +65,7 @@ No es obligatorio usar `api`, pero es la opcion mas limpia para separar frontend
 
 - `FRONTEND_URL`
 - `ADMIN_EMAIL`
+- `ADMIN_TOKEN_EXPIRES_IN=30m`
 
 ### Necesarias segun funcionalidad
 
@@ -77,6 +79,8 @@ No es obligatorio usar `api`, pero es la opcion mas limpia para separar frontend
 
 - `NODE_ENV=production`
 - `FRONTEND_URL=https://www.eljardindeluna.ar`
+- `ADMIN_PASSWORD=<tu password admin en Render>`
+- `ADMIN_TOKEN_EXPIRES_IN=30m`
 - `MP_ENVIRONMENT=production`
 - `CORS_ORIGINS=https://www.eljardindeluna.ar,https://eljardindeluna.ar`
 - `ALLOW_REQUESTS_WITHOUT_ORIGIN=false`
@@ -127,6 +131,8 @@ https://www.eljardindeluna.ar
 ```
 
 Si falta `ADMIN_EMAIL`, el backend arranca igual, pero no podra excluir automaticamente la cuenta admin del listado de usuarios.
+
+Si cambias `ADMIN_PASSWORD` en local, solo afecta al backend local. En Render tenes que actualizar `ADMIN_PASSWORD` desde Environment Variables y luego reiniciar o redeployar el servicio. Los tokens admin quedan ligados a la version vigente de `ADMIN_PASSWORD`, asi que al reiniciar con una nueva password las sesiones admin anteriores dejan de ser validas.
 
 Cuando `https://www.eljardindeluna.ar` ya apunte efectivamente a Vercel, conviene actualizar en Render:
 

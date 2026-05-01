@@ -1,6 +1,12 @@
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 import Usuario from "../models/usuario.js";
+import {
+  adminPasswordConfigurada,
+  compararAdminPassword,
+  esRolAdministrador,
+  logAdminPasswordStatus,
+} from "../helpers/adminAuth.js";
 import { responderAutenticacion } from "../helpers/authResponse.js";
 import {
   buildPasswordResetExpiryDate,
@@ -225,12 +231,35 @@ export const iniciarSesion = async (req, res) => {
       return responderCuentaInactiva(res);
     }
 
-    const passwordValido = bcrypt.compareSync(password, usuario.password);
+    const esLoginAdmin = esRolAdministrador(usuario.rol);
+
+    if (esLoginAdmin) {
+      logAdminPasswordStatus();
+    }
+
+    if (esLoginAdmin && !adminPasswordConfigurada()) {
+      console.warn("[admin-login] ADMIN_PASSWORD no esta configurada");
+      return res.status(503).json({
+        mensaje: "El login admin no esta configurado",
+      });
+    }
+
+    const passwordValido = esLoginAdmin
+      ? compararAdminPassword(password)
+      : bcrypt.compareSync(password, usuario.password);
 
     if (!passwordValido) {
+      if (esLoginAdmin) {
+        console.warn("[admin-login] Login admin fallido:", usuario.email);
+      }
+
       return res
-        .status(400)
+        .status(esLoginAdmin ? 401 : 400)
         .json({ mensaje: "Correo o contrasena incorrectos" });
+    }
+
+    if (esLoginAdmin) {
+      console.log("[admin-login] Login admin exitoso:", usuario.email);
     }
 
     return responderAutenticacion(res, usuario, "Login exitoso");
@@ -315,6 +344,23 @@ export const restablecerPassword = async (req, res) => {
       "Error al restablecer la contrasena",
       error,
     );
+  }
+};
+
+export const validarTokenAdmin = async (req, res) => {
+  try {
+    if (!esRolAdministrador(req.rol)) {
+      return res.status(403).json({
+        mensaje: "Acceso denegado: Se requiere rol de Administrador",
+      });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      mensaje: "Token admin valido",
+    });
+  } catch (error) {
+    return responderError(res, 500, "Error al validar token admin", error);
   }
 };
 

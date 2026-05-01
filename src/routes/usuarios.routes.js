@@ -11,6 +11,7 @@ import {
   cambiarEstadoUsuario,
   eliminarUsuario,
   actualizarCarrito,
+  validarTokenAdmin,
 } from "../controllers/usuarios.controllers.js";
 import verificarJWT from "../middlewares/verificarJWT.js";
 import { esAdministrador } from "../middlewares/verificarRoles.js";
@@ -36,6 +37,7 @@ const authRateLimit = createRateLimiter({
 router.post("/", authRateLimit, validacionUsuarios, crearUsuario);
 router.post("/iniciar-sesion", authRateLimit, validacionLogin, iniciarSesion);
 router.post("/login", authRateLimit, validacionLogin, iniciarSesion);
+router.get("/admin/validar-token", verificarJWT, esAdministrador, validarTokenAdmin);
 router.post(
   "/iniciar-sesion-social",
   authRateLimit,

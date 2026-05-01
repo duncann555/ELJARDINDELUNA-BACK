@@ -1,4 +1,8 @@
 import jwt from "jsonwebtoken";
+import {
+  adminTokenVersionVigente,
+  esRolAdministrador,
+} from "../helpers/adminAuth.js";
 
 const JWT_ISSUER = "el-jardin-de-luna-backend";
 
@@ -35,6 +39,13 @@ const verificarJWT = (req, res, next) => {
       algorithms: ["HS256"],
       issuer: JWT_ISSUER,
     });
+
+    if (
+      esRolAdministrador(payload.rol) &&
+      !adminTokenVersionVigente(payload.adminPasswordVersion)
+    ) {
+      return res.status(401).json({ mensaje: "La sesion admin ya no es valida" });
+    }
 
     req.usuarioId = payload.uid;
     req.rol = payload.rol;

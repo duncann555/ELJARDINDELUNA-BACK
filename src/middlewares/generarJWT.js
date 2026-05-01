@@ -1,11 +1,23 @@
 import jwt from "jsonwebtoken";
+import {
+  esRolAdministrador,
+  getAdminPasswordVersion,
+  getAdminTokenExpiresIn,
+} from "../helpers/adminAuth.js";
 
 const JWT_ISSUER = "el-jardin-de-luna-backend";
 
 const generarJWT = (uid, nombre, rol, email) => {
   return new Promise((resolve, reject) => {
     const secret = process.env.SECRETJWT;
-    const payload = { uid, nombre, rol, email };
+    const esAdmin = esRolAdministrador(rol);
+    const payload = {
+      uid,
+      nombre,
+      rol,
+      email,
+      ...(esAdmin ? { adminPasswordVersion: getAdminPasswordVersion() } : {}),
+    };
     const tokenError = new Error("No se pudo generar el token");
 
     if (!secret) {
@@ -17,7 +29,7 @@ const generarJWT = (uid, nombre, rol, email) => {
       payload,
       secret,
       {
-        expiresIn: "4h",
+        expiresIn: esAdmin ? getAdminTokenExpiresIn() : "4h",
         algorithm: "HS256",
         issuer: JWT_ISSUER,
         subject: String(uid),

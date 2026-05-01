@@ -109,6 +109,17 @@ export const validateRuntimeEnv = () => {
     );
   }
 
+  if (!hasValue("ADMIN_PASSWORD")) {
+    const message =
+      "[env] ADMIN_PASSWORD no esta configurada. El login admin no estara disponible.";
+
+    if (isProduction) {
+      throw new Error(message);
+    }
+
+    console.warn(message);
+  }
+
   if (isProduction && !isMercadoPagoProduction) {
     throw new Error("MP_ENVIRONMENT=production es obligatorio en produccion");
   }
