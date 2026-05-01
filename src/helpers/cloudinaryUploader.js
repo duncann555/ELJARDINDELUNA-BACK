@@ -1,6 +1,13 @@
 import cloudinary from "./cloudinary.js";
 
-const cloudinaryUploader = (file) => {
+const cloudinaryUploader = (
+  file,
+  {
+    folder = "el_jardin_de_luna_productos",
+    resourceType = "image",
+    allowedFormats = ["jpg", "jpeg", "png", "webp", "avif"],
+  } = {},
+) => {
   return new Promise((resolve, reject) => {
     if (!file) {
       resolve(null);
@@ -9,9 +16,9 @@ const cloudinaryUploader = (file) => {
 
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        folder: "el_jardin_de_luna_productos",
-        resource_type: "image",
-        allowed_formats: ["jpg", "jpeg", "png", "webp", "avif"],
+        folder,
+        resource_type: resourceType,
+        allowed_formats: allowedFormats,
       },
       (error, result) => {
         if (error) {

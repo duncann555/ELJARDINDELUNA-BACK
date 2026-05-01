@@ -1,7 +1,14 @@
 import Producto from "../models/producto.js";
+import {
+  DESCUENTO_TRANSFERENCIA,
+  METODOS_PAGO_PEDIDO,
+  METODO_PAGO_MERCADO_PAGO,
+  METODO_PAGO_TRANSFERENCIA,
+  PROVEEDOR_PAGO_MERCADO_PAGO,
+  PROVEEDOR_PAGO_TRANSFERENCIA,
+} from "../constants/pagos.js";
 
-const FIXED_SHIPPING_COST = Number(process.env.FIXED_SHIPPING_COST || 15000);
-const FREE_SHIPPING_THRESHOLD = Number(process.env.FREE_SHIPPING_THRESHOLD || 60000);
+const FIXED_SHIPPING_COST = Number(process.env.FIXED_SHIPPING_COST || 8500);
 
 const normalizarTexto = (value) =>
   typeof value === "string" ? value.trim() : "";
@@ -10,6 +17,21 @@ const normalizarNumero = (value, fallback = 0) => {
   const numero = Number(value);
   return Number.isFinite(numero) ? numero : fallback;
 };
+
+export const normalizarMetodoPago = (value) => {
+  const metodo = String(value || "").trim().toLowerCase();
+
+  if (METODOS_PAGO_PEDIDO.includes(metodo)) {
+    return metodo;
+  }
+
+  return METODO_PAGO_MERCADO_PAGO;
+};
+
+const obtenerProveedorPago = (metodoPago) =>
+  metodoPago === METODO_PAGO_TRANSFERENCIA
+    ? PROVEEDOR_PAGO_TRANSFERENCIA
+    : PROVEEDOR_PAGO_MERCADO_PAGO;
 
 export const validarDatosEnvio = (envio) => {
   const envioNormalizado = {
@@ -100,21 +122,30 @@ export const resolverProductosPedido = async (productosSolicitados) => {
   };
 };
 
-export const construirResumenPedido = async ({ productos, envio }) => {
+export const construirResumenPedido = async ({ productos, envio, metodoPago }) => {
   const { productosFinal, subtotal } = await resolverProductosPedido(productos);
   const envioNormalizado = validarDatosEnvio(envio);
-  const esGratis = subtotal >= FREE_SHIPPING_THRESHOLD;
-  const costo = esGratis ? 0 : FIXED_SHIPPING_COST;
+  const metodoPagoNormalizado = normalizarMetodoPago(metodoPago);
+  const descuento =
+    metodoPagoNormalizado === METODO_PAGO_TRANSFERENCIA
+      ? Number((subtotal * DESCUENTO_TRANSFERENCIA).toFixed(2))
+      : 0;
+  const costo = FIXED_SHIPPING_COST;
 
   return {
     productosFinal,
     subtotal,
+    descuento,
+    metodoPago: metodoPagoNormalizado,
+    pago: {
+      proveedor: obtenerProveedorPago(metodoPagoNormalizado),
+    },
     envio: {
       proveedor: "Envio nacional",
       costo,
-      esGratis,
+      esGratis: false,
       destino: envioNormalizado,
     },
-    total: Number((subtotal + costo).toFixed(2)),
+    total: Number((subtotal - descuento + costo).toFixed(2)),
   };
 };

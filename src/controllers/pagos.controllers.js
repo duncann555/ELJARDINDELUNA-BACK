@@ -7,6 +7,11 @@ import {
   ESTADO_PEDIDO_PREPARANDO_ENVIO,
   pedidoDebeMantenerStockDescontado,
 } from "../constants/pedidos.js";
+import {
+  ESTADO_PAGO_APROBADO,
+  ESTADO_PAGO_RECHAZADO,
+  METODO_PAGO_MERCADO_PAGO,
+} from "../constants/pagos.js";
 import { responderError } from "../helpers/safeError.js";
 import { sincronizarInventarioPedido } from "../services/pedidoInventory.service.js";
 
@@ -31,12 +36,12 @@ const usuarioPuedeGestionarPedido = (pedido, req) =>
   pedido.usuario.toString() === req.usuarioId || req.rol === "Administrador";
 
 const normalizarEstadoPago = (status) => {
-  if (status === "approved") {
-    return "approved";
+  if (status === ESTADO_PAGO_APROBADO) {
+    return ESTADO_PAGO_APROBADO;
   }
 
   if (["rejected", "cancelled", "refunded"].includes(status)) {
-    return "rejected";
+    return ESTADO_PAGO_RECHAZADO;
   }
 
   return "pending";
@@ -138,6 +143,7 @@ const actualizarPedidoSegunPago = ({
 }) => {
   const estadoPago = normalizarEstadoPago(status);
 
+  pedido.estadoPago = estadoPago;
   pedido.pago.estado = estadoPago;
   pedido.pago.statusDetalle = String(statusDetail || "");
 
@@ -149,7 +155,7 @@ const actualizarPedidoSegunPago = ({
     pedido.pago.preferenceId = preferenceId;
   }
 
-  if (estadoPago === "approved") {
+  if (estadoPago === ESTADO_PAGO_APROBADO) {
     pedido.pago.fechaPago = new Date();
 
     if (pedido.estadoPedido === ESTADO_PEDIDO_EN_ESPERA_PAGO) {
@@ -158,7 +164,7 @@ const actualizarPedidoSegunPago = ({
   }
 
   if (
-    estadoPago === "rejected" &&
+    estadoPago === ESTADO_PAGO_RECHAZADO &&
     pedido.estadoPedido === ESTADO_PEDIDO_EN_ESPERA_PAGO
   ) {
     pedido.estadoPedido = ESTADO_PEDIDO_CANCELADO;
@@ -279,6 +285,15 @@ export const crearPreferencia = async (req, res) => {
     if (!usuarioPuedeGestionarPedido(pedido, req)) {
       return res.status(403).json({
         mensaje: "No tienes permisos para este pedido",
+      });
+    }
+
+    const metodoPagoPedido =
+      pedido.metodoPago || METODO_PAGO_MERCADO_PAGO;
+
+    if (metodoPagoPedido !== METODO_PAGO_MERCADO_PAGO) {
+      return res.status(400).json({
+        mensaje: "Este pedido debe confirmarse por transferencia bancaria",
       });
     }
 

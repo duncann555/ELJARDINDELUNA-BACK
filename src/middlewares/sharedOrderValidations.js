@@ -1,4 +1,5 @@
 import { body } from "express-validator";
+import { METODOS_PAGO_PEDIDO } from "../constants/pagos.js";
 
 export const CODIGO_POSTAL_REGEX = /^[A-Za-z0-9-]{3,10}$/;
 export const TELEFONO_REGEX = /^\d{8,15}$/;
@@ -60,4 +61,12 @@ export const crearValidacionesDatosEnvio = ({
     .withMessage("El codigo postal es obligatorio")
     .matches(CODIGO_POSTAL_REGEX)
     .withMessage("El codigo postal no es valido"),
+];
+
+export const crearValidacionesMetodoPago = () => [
+  body("metodoPago")
+    .optional()
+    .trim()
+    .isIn(METODOS_PAGO_PEDIDO)
+    .withMessage("El metodo de pago no es valido"),
 ];

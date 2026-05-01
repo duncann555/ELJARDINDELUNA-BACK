@@ -1,5 +1,11 @@
 import mongoose, { Schema } from "mongoose";
 import { PEDIDO_ESTADOS } from "../constants/pedidos.js";
+import {
+  ESTADOS_PAGO_PEDIDO,
+  ESTADO_PAGO_PENDIENTE,
+  METODOS_PAGO_PEDIDO,
+  METODO_PAGO_MERCADO_PAGO,
+} from "../constants/pagos.js";
 
 const pedidoSchema = new Schema(
   {
@@ -32,6 +38,20 @@ const pedidoSchema = new Schema(
       type: Number,
       required: true,
     },
+    descuento: {
+      type: Number,
+      default: 0,
+    },
+    metodoPago: {
+      type: String,
+      enum: METODOS_PAGO_PEDIDO,
+      default: METODO_PAGO_MERCADO_PAGO,
+    },
+    estadoPago: {
+      type: String,
+      enum: ESTADOS_PAGO_PEDIDO,
+      default: ESTADO_PAGO_PENDIENTE,
+    },
     pago: {
       proveedor: {
         type: String,
@@ -41,8 +61,8 @@ const pedidoSchema = new Schema(
       paymentId: String,
       estado: {
         type: String,
-        enum: ["pending", "approved", "rejected"],
-        default: "pending",
+        enum: ESTADOS_PAGO_PEDIDO,
+        default: ESTADO_PAGO_PENDIENTE,
       },
       statusDetalle: String,
       fechaPago: Date,
@@ -67,6 +87,12 @@ const pedidoSchema = new Schema(
         type: Boolean,
         default: false,
       },
+    },
+    comprobanteTransferencia: {
+      url: String,
+      publicId: String,
+      originalName: String,
+      uploadedAt: Date,
     },
     inventario: {
       descontado: {
