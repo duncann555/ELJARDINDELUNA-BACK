@@ -8,7 +8,7 @@ import {
   PROVEEDOR_PAGO_TRANSFERENCIA,
 } from "../constants/pagos.js";
 
-const FIXED_SHIPPING_COST = Number(process.env.FIXED_SHIPPING_COST || 8500);
+const FIXED_SHIPPING_COST = Number(process.env.FIXED_SHIPPING_COST || 9500);
 
 const normalizarTexto = (value) =>
   typeof value === "string" ? value.trim() : "";
