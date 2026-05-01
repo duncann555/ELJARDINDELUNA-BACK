@@ -7,6 +7,7 @@ import {
   restablecerPassword,
   listarUsuarios,
   obtenerUsuarioID,
+  actualizarDatosEnvioUsuario,
   cambiarEstadoUsuario,
   eliminarUsuario,
   actualizarCarrito,
@@ -79,6 +80,14 @@ router.get(
   validacionID,
   autorizarUsuarioOAdmin(),
   obtenerUsuarioID,
+);
+
+router.put(
+  "/datos-envio/:id",
+  verificarJWT,
+  validacionID,
+  autorizarUsuarioOAdmin(),
+  actualizarDatosEnvioUsuario,
 );
 
 router.patch(

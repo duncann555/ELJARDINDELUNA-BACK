@@ -30,6 +30,22 @@ const pedidoSchema = new Schema(
         },
       },
     ],
+    datosCliente: {
+      nombre: String,
+      email: String,
+    },
+    datosEnvio: {
+      tipo: String,
+      celular: String,
+      provincia: String,
+      ciudad: String,
+      codigoPostal: String,
+      domicilio: String,
+      entreCalles: String,
+      referencia: String,
+      sucursalAndreani: String,
+      horarioConveniente: String,
+    },
     total: {
       type: Number,
       required: true,
@@ -68,6 +84,12 @@ const pedidoSchema = new Schema(
       fechaPago: Date,
     },
     envio: {
+      tipo: String,
+      operador: String,
+      estadoEnvio: {
+        type: String,
+        default: "pendiente",
+      },
       proveedor: {
         type: String,
         default: "Envio nacional",
@@ -79,6 +101,8 @@ const pedidoSchema = new Schema(
       entreCalles: String,
       referencia: String,
       codigoPostal: String,
+      sucursalAndreani: String,
+      horarioConveniente: String,
       costo: {
         type: Number,
         default: 0,

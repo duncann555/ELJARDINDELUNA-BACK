@@ -93,6 +93,18 @@ const usuarioSchema = new Schema(
         imagenUrl: String,
       },
     ],
+    datosEnvioPreferidos: {
+      tipo: String,
+      celular: String,
+      provincia: String,
+      ciudad: String,
+      codigoPostal: String,
+      domicilio: String,
+      entreCalles: String,
+      referencia: String,
+      sucursalAndreani: String,
+      horarioConveniente: String,
+    },
   },
   {
     timestamps: true,

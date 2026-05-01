@@ -57,7 +57,6 @@ export const validacionProducto = [
     .withMessage("El precio es un dato obligatorio")
     .isFloat({ min: 0, max: 1000000 })
     .withMessage("El precio debe ser un numero valido entre 0 y 1.000.000"),
-  body("oferta").optional().isBoolean(),
   body("destacado").optional().isBoolean(),
   resultadoValidacion,
 ];

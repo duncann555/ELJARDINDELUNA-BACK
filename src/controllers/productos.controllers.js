@@ -19,7 +19,7 @@ const construirPayloadProducto = (body, imagenUrl) => ({
   precio: body.precio,
   stock: body.stock,
   estado: body.estado,
-  oferta: body.oferta,
+  oferta: false,
   destacado: body.destacado,
   imagenUrl,
 });
@@ -123,6 +123,7 @@ export const editarProducto = async (req, res) => {
 
     asignarCamposEditables(producto, req.body);
     producto.categoria = normalizarProductoCategoria(producto.categoria);
+    producto.oferta = false;
 
     if (req.file) {
       producto.imagenUrl = await subirImagenProducto(req.file);

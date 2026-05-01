@@ -1,8 +1,20 @@
 import { body } from "express-validator";
 import { METODOS_PAGO_PEDIDO } from "../constants/pagos.js";
+import {
+  LOCALIDADES_CADETE,
+  TIPO_ENVIO_ANDREANI_DOMICILIO,
+  TIPO_ENVIO_ANDREANI_SUCURSAL,
+  TIPO_ENVIO_CADETE_LOCAL,
+  TIPOS_ENVIO_PEDIDO,
+  localidadPermiteCadete,
+  normalizarTipoEnvio,
+} from "../services/envios.service.js";
 
 export const CODIGO_POSTAL_REGEX = /^[A-Za-z0-9-]{3,10}$/;
 export const TELEFONO_REGEX = /^\d{8,15}$/;
+
+const normalizarTexto = (value) =>
+  typeof value === "string" ? value.trim() : "";
 
 export const crearValidacionesProductosPedido = ({ maxItems = 50 } = {}) => [
   body("productos")
@@ -18,49 +30,89 @@ export const crearValidacionesProductosPedido = ({ maxItems = 50 } = {}) => [
     .withMessage("La cantidad debe ser un entero entre 1 y 50"),
 ];
 
-export const crearValidacionesDatosEnvio = ({
-  maxDomicilio = 160,
-} = {}) => [
-  body("envio.provincia")
-    .trim()
-    .notEmpty()
-    .withMessage("La provincia es obligatoria")
-    .isLength({ min: 2, max: 80 })
-    .withMessage("La provincia no es valida"),
-  body("envio.ciudad")
-    .trim()
-    .notEmpty()
-    .withMessage("La ciudad es obligatoria")
-    .isLength({ min: 2, max: 80 })
-    .withMessage("La ciudad no es valida"),
-  body("envio.domicilio")
-    .trim()
-    .notEmpty()
-    .withMessage("El domicilio es obligatorio")
-    .isLength({ min: 5, max: maxDomicilio })
-    .withMessage("El domicilio no es valido"),
-  body("envio.celular")
-    .customSanitizer((value) => String(value || "").replace(/\D/g, ""))
-    .notEmpty()
-    .withMessage("El celular es obligatorio")
-    .matches(TELEFONO_REGEX)
-    .withMessage("El celular no es valido"),
-  body("envio.entreCalles")
-    .optional({ values: "falsy" })
-    .trim()
-    .isLength({ max: 120 })
-    .withMessage("Entre calles no es valido"),
-  body("envio.referencia")
-    .optional({ values: "falsy" })
-    .trim()
-    .isLength({ max: 180 })
-    .withMessage("La referencia no es valida"),
-  body("envio.codigoPostal")
-    .trim()
-    .notEmpty()
-    .withMessage("El codigo postal es obligatorio")
-    .matches(CODIGO_POSTAL_REGEX)
-    .withMessage("El codigo postal no es valido"),
+export const crearValidacionesDatosEnvio = ({ maxDomicilio = 160 } = {}) => [
+  body("envio")
+    .isObject()
+    .withMessage("Los datos de envio son obligatorios")
+    .bail()
+    .custom((envio = {}) => {
+      const tipoRaw = String(envio.tipo || "").trim().toLowerCase();
+      const tipo = normalizarTipoEnvio(envio.tipo);
+      const provincia = normalizarTexto(envio.provincia);
+      const ciudad = normalizarTexto(envio.ciudad);
+      const domicilio = normalizarTexto(envio.domicilio);
+      const celular = String(envio.celular || "").replace(/\D/g, "");
+      const codigoPostal = normalizarTexto(envio.codigoPostal);
+      const sucursalAndreani = normalizarTexto(envio.sucursalAndreani);
+      const entreCalles = normalizarTexto(envio.entreCalles);
+      const referencia = normalizarTexto(envio.referencia);
+      const horarioConveniente = normalizarTexto(envio.horarioConveniente);
+
+      if (tipoRaw && !TIPOS_ENVIO_PEDIDO.includes(tipoRaw)) {
+        throw new Error("El tipo de envio no es valido");
+      }
+
+      if (!ciudad || ciudad.length < 2 || ciudad.length > 80) {
+        throw new Error("La ciudad es obligatoria");
+      }
+
+      if (!TELEFONO_REGEX.test(celular)) {
+        throw new Error("El celular no es valido");
+      }
+
+      if (tipo !== TIPO_ENVIO_CADETE_LOCAL) {
+        if (!provincia || provincia.length < 2 || provincia.length > 80) {
+          throw new Error("La provincia es obligatoria");
+        }
+
+        if (!CODIGO_POSTAL_REGEX.test(codigoPostal)) {
+          throw new Error("El codigo postal no es valido");
+        }
+      }
+
+      if (
+        tipo === TIPO_ENVIO_ANDREANI_DOMICILIO &&
+        (domicilio.length < 5 || domicilio.length > maxDomicilio)
+      ) {
+        throw new Error("El domicilio no es valido");
+      }
+
+      if (
+        tipo === TIPO_ENVIO_ANDREANI_SUCURSAL &&
+        (sucursalAndreani.length < 3 || sucursalAndreani.length > 160)
+      ) {
+        throw new Error("La sucursal Andreani es obligatoria");
+      }
+
+      if (tipo === TIPO_ENVIO_CADETE_LOCAL) {
+        if (!localidadPermiteCadete(ciudad)) {
+          throw new Error(
+            `Acordar con el vendedor solo esta disponible para ${LOCALIDADES_CADETE.join(" y ")}`,
+          );
+        }
+      }
+
+      if (entreCalles.length > 120) {
+        throw new Error("Entre calles no es valido");
+      }
+
+      if (referencia.length > 180) {
+        throw new Error("La referencia no es valida");
+      }
+
+      if (horarioConveniente.length > 120) {
+        throw new Error("El horario conveniente no es valido");
+      }
+
+      return true;
+    }),
+  body("envio.celular").customSanitizer((value) =>
+    String(value || "").replace(/\D/g, ""),
+  ),
+  body("guardarDatosEnvio")
+    .optional()
+    .isBoolean()
+    .withMessage("Guardar datos de envio debe ser verdadero o falso"),
 ];
 
 export const crearValidacionesMetodoPago = () => [

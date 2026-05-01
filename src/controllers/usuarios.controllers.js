@@ -11,6 +11,7 @@ import {
 import { responderError } from "../helpers/safeError.js";
 import { sendPasswordResetEmail } from "../services/email.service.js";
 import { verifyFirebaseIdToken } from "../services/firebaseAdmin.service.js";
+import { validarDatosEnvio } from "../services/envios.service.js";
 
 const SALT_ROUNDS = 10;
 const SOCIAL_PROVIDER_MAP = {
@@ -128,6 +129,7 @@ const serializarUsuario = (usuario) => {
   return {
     ...usuarioPlano,
     estado: normalizarEstadoUsuario(usuarioPlano?.estado),
+    datosEnvioPreferidos: usuarioPlano?.datosEnvioPreferidos || null,
   };
 };
 
@@ -492,6 +494,30 @@ export const obtenerUsuarioID = async (req, res) => {
     return res.status(200).json(serializarUsuario(usuario));
   } catch (error) {
     return responderError(res, 500, "Error al buscar usuario", error);
+  }
+};
+
+export const actualizarDatosEnvioUsuario = async (req, res) => {
+  try {
+    const datosEnvioPreferidos = validarDatosEnvio(req.body?.datosEnvio || req.body);
+
+    const usuario = await Usuario.findByIdAndUpdate(
+      req.params.id,
+      { datosEnvioPreferidos },
+      { new: true, runValidators: true },
+    ).select("-password");
+
+    if (!usuario) {
+      return res.status(404).json({ mensaje: "Usuario no encontrado" });
+    }
+
+    return res.status(200).json({
+      mensaje: "Datos de envio guardados correctamente",
+      usuario: serializarUsuario(usuario),
+      datosEnvioPreferidos: usuario.datosEnvioPreferidos,
+    });
+  } catch (error) {
+    return responderError(res, 400, "Error al guardar datos de envio", error);
   }
 };
 

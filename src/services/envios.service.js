@@ -8,10 +8,29 @@ import {
   PROVEEDOR_PAGO_TRANSFERENCIA,
 } from "../constants/pagos.js";
 
-const FIXED_SHIPPING_COST = Number(process.env.FIXED_SHIPPING_COST || 9500);
+export const TIPO_ENVIO_ANDREANI_DOMICILIO = "andreani_domicilio";
+export const TIPO_ENVIO_ANDREANI_SUCURSAL = "andreani_sucursal";
+export const TIPO_ENVIO_CADETE_LOCAL = "cadete_local";
+
+export const TIPOS_ENVIO_PEDIDO = [
+  TIPO_ENVIO_ANDREANI_DOMICILIO,
+  TIPO_ENVIO_ANDREANI_SUCURSAL,
+  TIPO_ENVIO_CADETE_LOCAL,
+];
+
+export const COSTO_ENVIO_ANDREANI = Number(
+  process.env.COSTO_ENVIO_ANDREANI || process.env.FIXED_SHIPPING_COST || 9500,
+);
+export const LOCALIDADES_CADETE = ["San Miguel de Tucuman", "Yerba Buena"];
 
 const normalizarTexto = (value) =>
   typeof value === "string" ? value.trim() : "";
+
+const normalizarLocalidad = (value) =>
+  normalizarTexto(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 const normalizarNumero = (value, fallback = 0) => {
   const numero = Number(value);
@@ -33,8 +52,43 @@ const obtenerProveedorPago = (metodoPago) =>
     ? PROVEEDOR_PAGO_TRANSFERENCIA
     : PROVEEDOR_PAGO_MERCADO_PAGO;
 
+export const normalizarTipoEnvio = (value) => {
+  const tipo = String(value || "").trim().toLowerCase();
+
+  return TIPOS_ENVIO_PEDIDO.includes(tipo)
+    ? tipo
+    : TIPO_ENVIO_ANDREANI_DOMICILIO;
+};
+
+export const localidadPermiteCadete = (ciudad) => {
+  const ciudadNormalizada = normalizarLocalidad(ciudad);
+
+  return LOCALIDADES_CADETE.some(
+    (localidad) => normalizarLocalidad(localidad) === ciudadNormalizada,
+  );
+};
+
+const obtenerCostoEnvio = (tipo) =>
+  tipo === TIPO_ENVIO_CADETE_LOCAL ? 0 : COSTO_ENVIO_ANDREANI;
+
+const obtenerProveedorEnvio = (tipo) => {
+  switch (tipo) {
+    case TIPO_ENVIO_ANDREANI_SUCURSAL:
+      return "Andreani a sucursal";
+    case TIPO_ENVIO_CADETE_LOCAL:
+      return "Acordar con el vendedor";
+    default:
+      return "Andreani a domicilio";
+  }
+};
+
+const obtenerOperadorEnvio = (tipo) =>
+  tipo === TIPO_ENVIO_CADETE_LOCAL ? "cadete" : "andreani";
+
 export const validarDatosEnvio = (envio) => {
+  const tipo = normalizarTipoEnvio(envio?.tipo);
   const envioNormalizado = {
+    tipo,
     provincia: normalizarTexto(envio?.provincia),
     ciudad: normalizarTexto(envio?.ciudad),
     domicilio: normalizarTexto(envio?.domicilio),
@@ -42,9 +96,11 @@ export const validarDatosEnvio = (envio) => {
     entreCalles: normalizarTexto(envio?.entreCalles),
     referencia: normalizarTexto(envio?.referencia),
     codigoPostal: normalizarTexto(envio?.codigoPostal),
+    sucursalAndreani: normalizarTexto(envio?.sucursalAndreani),
+    horarioConveniente: normalizarTexto(envio?.horarioConveniente),
   };
 
-  if (!envioNormalizado.provincia) {
+  if (tipo !== TIPO_ENVIO_CADETE_LOCAL && !envioNormalizado.provincia) {
     throw new Error("La provincia es obligatoria");
   }
 
@@ -52,7 +108,10 @@ export const validarDatosEnvio = (envio) => {
     throw new Error("La ciudad es obligatoria");
   }
 
-  if (!envioNormalizado.domicilio) {
+  if (
+    tipo === TIPO_ENVIO_ANDREANI_DOMICILIO &&
+    !envioNormalizado.domicilio
+  ) {
     throw new Error("El domicilio es obligatorio");
   }
 
@@ -64,8 +123,18 @@ export const validarDatosEnvio = (envio) => {
     throw new Error("El celular no es valido");
   }
 
-  if (!envioNormalizado.codigoPostal) {
+  if (tipo !== TIPO_ENVIO_CADETE_LOCAL && !envioNormalizado.codigoPostal) {
     throw new Error("El codigo postal es obligatorio");
+  }
+
+  if (tipo === TIPO_ENVIO_ANDREANI_SUCURSAL && !envioNormalizado.sucursalAndreani) {
+    throw new Error("La sucursal Andreani es obligatoria");
+  }
+
+  if (tipo === TIPO_ENVIO_CADETE_LOCAL) {
+    if (!localidadPermiteCadete(envioNormalizado.ciudad)) {
+      throw new Error("Acordar con el vendedor solo esta disponible para San Miguel de Tucuman y Yerba Buena");
+    }
   }
 
   return envioNormalizado;
@@ -130,7 +199,7 @@ export const construirResumenPedido = async ({ productos, envio, metodoPago }) =
     metodoPagoNormalizado === METODO_PAGO_TRANSFERENCIA
       ? Number((subtotal * DESCUENTO_TRANSFERENCIA).toFixed(2))
       : 0;
-  const costo = FIXED_SHIPPING_COST;
+  const costo = obtenerCostoEnvio(envioNormalizado.tipo);
 
   return {
     productosFinal,
@@ -141,9 +210,12 @@ export const construirResumenPedido = async ({ productos, envio, metodoPago }) =
       proveedor: obtenerProveedorPago(metodoPagoNormalizado),
     },
     envio: {
-      proveedor: "Envio nacional",
+      tipo: envioNormalizado.tipo,
+      operador: obtenerOperadorEnvio(envioNormalizado.tipo),
+      proveedor: obtenerProveedorEnvio(envioNormalizado.tipo),
       costo,
       esGratis: false,
+      estadoEnvio: "pendiente",
       destino: envioNormalizado,
     },
     total: Number((subtotal - descuento + costo).toFixed(2)),

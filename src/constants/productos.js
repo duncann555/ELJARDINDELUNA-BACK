@@ -29,7 +29,6 @@ export const PRODUCTO_CAMPOS_EDITABLES = [
   "precio",
   "stock",
   "estado",
-  "oferta",
   "destacado",
 ];
 

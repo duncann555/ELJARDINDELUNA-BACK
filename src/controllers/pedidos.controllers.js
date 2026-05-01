@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Pedido from "../models/pedido.js";
+import Usuario from "../models/usuario.js";
 import {
   ESTADO_PEDIDO_CANCELADO,
   ESTADO_PEDIDO_EN_ESPERA_PAGO,
@@ -29,8 +30,13 @@ const construirRespuestaPedido = (pedido) => ({
   total: pedido.total,
   metodoPago: pedido.metodoPago,
   estadoPago: pedido.estadoPago || pedido.pago?.estado || ESTADO_PAGO_PENDIENTE,
+  datosCliente: pedido.datosCliente || null,
+  datosEnvio: pedido.datosEnvio || null,
   comprobanteTransferencia: pedido.comprobanteTransferencia || null,
   envio: {
+    tipo: pedido.envio.tipo,
+    operador: pedido.envio.operador,
+    estadoEnvio: pedido.envio.estadoEnvio,
     proveedor: pedido.envio.proveedor,
     costo: pedido.envio.costo,
     esGratis: pedido.envio.esGratis,
@@ -41,6 +47,8 @@ const construirRespuestaPedido = (pedido) => ({
     entreCalles: pedido.envio.entreCalles,
     referencia: pedido.envio.referencia,
     codigoPostal: pedido.envio.codigoPostal,
+    sucursalAndreani: pedido.envio.sucursalAndreani,
+    horarioConveniente: pedido.envio.horarioConveniente,
   },
 });
 
@@ -96,17 +104,29 @@ const aplicarEstadoPagoTransferencia = ({
 
 export const crearPedido = async (req, res) => {
   try {
-    const { productos, envio, metodoPago } = req.body;
+    const { productos, envio, metodoPago, guardarDatosEnvio } = req.body;
     const usuarioId = req.usuarioId;
 
     if (!usuarioId) {
       return res.status(401).json({ mensaje: "Usuario no identificado" });
     }
 
+    const usuario = await Usuario.findById(usuarioId).select("-password");
+
+    if (!usuario) {
+      return res.status(401).json({ mensaje: "Usuario no identificado" });
+    }
+
     const resumen = await construirResumenPedido({ productos, envio, metodoPago });
+    const datosCliente = {
+      nombre: `${usuario.nombre || ""} ${usuario.apellido || ""}`.trim(),
+      email: usuario.email,
+    };
 
     const pedido = new Pedido({
       usuario: usuarioId,
+      datosCliente,
+      datosEnvio: resumen.envio.destino,
       productos: resumen.productosFinal,
       subtotal: resumen.subtotal,
       descuento: resumen.descuento,
@@ -115,9 +135,12 @@ export const crearPedido = async (req, res) => {
       estadoPago: ESTADO_PAGO_PENDIENTE,
       envio: {
         ...resumen.envio.destino,
+        tipo: resumen.envio.tipo,
+        operador: resumen.envio.operador,
         proveedor: resumen.envio.proveedor,
         costo: resumen.envio.costo,
         esGratis: resumen.envio.esGratis,
+        estadoEnvio: resumen.envio.estadoEnvio,
       },
       pago: {
         proveedor: resumen.pago.proveedor,
@@ -131,6 +154,11 @@ export const crearPedido = async (req, res) => {
     });
 
     await pedido.save();
+
+    if (guardarDatosEnvio === true) {
+      usuario.datosEnvioPreferidos = resumen.envio.destino;
+      await usuario.save({ validateBeforeSave: false });
+    }
 
     res.status(201).json(construirRespuestaPedido(pedido));
   } catch (error) {

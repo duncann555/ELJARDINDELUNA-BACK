@@ -211,6 +211,14 @@ export default class Server {
   }
 
   publicRoutes() {
+    this.app.get("/health", (_req, res) => {
+      res.status(200).json({
+        ok: true,
+        servicio: SERVICE_NAME,
+        entorno: process.env.NODE_ENV || "development",
+      });
+    });
+
     this.app.get("/api", (_req, res) => {
       res.status(200).json({
         ok: true,
@@ -261,7 +269,9 @@ export default class Server {
           "100kb",
       }),
     );
-    this.app.use(morgan("dev"));
+    if (process.env.NODE_ENV !== "production") {
+      this.app.use(morgan("dev"));
+    }
 
     if (!process.env.VERCEL) {
       const __dirname = dirname(fileURLToPath(import.meta.url));

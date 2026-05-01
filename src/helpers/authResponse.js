@@ -9,6 +9,7 @@ export const serializarUsuarioAuth = (usuario) => ({
   rol: usuario.rol,
   estado: usuario.estado,
   carrito: usuario.carrito || [],
+  datosEnvioPreferidos: usuario.datosEnvioPreferidos || null,
 });
 
 export const responderAutenticacion = async (
