@@ -4,6 +4,8 @@ const DEFAULT_PRODUCTION_FRONTEND_URL =
   "https://www.eljardindeluna.ar";
 
 const PRODUCTION_REQUIRED_ENV = ["MONGODB", "SECRETJWT", "MP_ACCESS_TOKEN"];
+const MP_ENVIRONMENT_PRODUCTION = "production";
+const MP_ENVIRONMENT_SANDBOX = "sandbox";
 
 const normalizeUrlValue = (value, { allowLocalhost = false } = {}) => {
   const rawValue = String(value || "").trim().replace(/\/+$/, "");
@@ -79,9 +81,14 @@ const ensureProductionFrontendUrl = () => {
 
 export const validateRuntimeEnv = () => {
   const isProduction = process.env.NODE_ENV === "production";
+  const mercadoPagoEnvironment = String(process.env.MP_ENVIRONMENT || "")
+    .trim()
+    .toLowerCase();
   const isMercadoPagoProduction =
-    String(process.env.MP_ENVIRONMENT || "").trim().toLowerCase() ===
-    "production";
+    mercadoPagoEnvironment === MP_ENVIRONMENT_PRODUCTION;
+  const isMercadoPagoSandbox = ["sandbox", "test", "development"].includes(
+    mercadoPagoEnvironment,
+  );
   const missingRequired = PRODUCTION_REQUIRED_ENV.filter((key) => !hasValue(key));
 
   if (isProduction && missingRequired.length > 0) {
@@ -96,17 +103,35 @@ export const validateRuntimeEnv = () => {
     );
   }
 
+  if (
+    hasValue("MP_ENVIRONMENT") &&
+    !isMercadoPagoProduction &&
+    !isMercadoPagoSandbox
+  ) {
+    throw new Error("MP_ENVIRONMENT debe ser production o sandbox");
+  }
+
   if (!hasValue("MP_ACCESS_TOKEN")) {
     console.warn(
       "[env] MP_ACCESS_TOKEN no esta configurado. Mercado Pago no podra iniciar cobros.",
     );
-  } else if (
-    (isProduction || isMercadoPagoProduction) &&
-    !String(process.env.MP_ACCESS_TOKEN).trim().startsWith("APP_USR-")
-  ) {
-    throw new Error(
-      "MP_ACCESS_TOKEN debe ser una credencial productiva APP_USR en produccion",
-    );
+  } else {
+    const mpAccessToken = String(process.env.MP_ACCESS_TOKEN).trim();
+
+    if (
+      (isProduction || isMercadoPagoProduction) &&
+      !mpAccessToken.startsWith("APP_USR-")
+    ) {
+      throw new Error(
+        "MP_ACCESS_TOKEN debe ser una credencial productiva APP_USR en produccion",
+      );
+    }
+
+    if (!isProduction && isMercadoPagoSandbox && !mpAccessToken.startsWith("TEST-")) {
+      throw new Error(
+        "MP_ACCESS_TOKEN debe ser una credencial TEST en sandbox",
+      );
+    }
   }
 
   if (!hasValue("ADMIN_PASSWORD")) {

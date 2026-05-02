@@ -15,6 +15,9 @@ import {
 import { responderError } from "../helpers/safeError.js";
 import { sincronizarInventarioPedido } from "../services/pedidoInventory.service.js";
 
+const MP_ENVIRONMENT_PRODUCTION = "production";
+const MP_ENVIRONMENT_SANDBOX = "sandbox";
+
 const getMercadoPagoClient = () => {
   const accessToken = String(process.env.MP_ACCESS_TOKEN || "").trim();
 
@@ -26,8 +29,17 @@ const getMercadoPagoClient = () => {
     throw error;
   }
 
+  // Produccion y sandbox no son intercambiables: Mercado Pago rechaza pagos si se mezclan cuentas reales y de prueba.
   if (esMercadoPagoProduccion() && !accessToken.startsWith("APP_USR-")) {
     const error = new Error("Mercado Pago debe usar credenciales productivas");
+    error.status = 503;
+    error.publicMessage =
+      "El medio de pago no esta disponible en este momento";
+    throw error;
+  }
+
+  if (esMercadoPagoSandbox() && !esTokenPruebaMercadoPago(accessToken)) {
+    const error = new Error("Mercado Pago sandbox debe usar credenciales TEST");
     error.status = 503;
     error.publicMessage =
       "El medio de pago no esta disponible en este momento";
@@ -65,25 +77,104 @@ const buildPaymentError = (status, mensaje) => {
 const normalizarUrlBase = (value) =>
   String(value || "").trim().replace(/\/+$/, "");
 
+const normalizarMercadoPagoEnvironment = () => {
+  const environment = String(process.env.MP_ENVIRONMENT || "")
+    .trim()
+    .toLowerCase();
+
+  if (environment === MP_ENVIRONMENT_PRODUCTION) return MP_ENVIRONMENT_PRODUCTION;
+  if (["sandbox", "test", "development"].includes(environment)) {
+    return MP_ENVIRONMENT_SANDBOX;
+  }
+
+  return "";
+};
+
 const esMercadoPagoProduccion = () =>
-  String(process.env.MP_ENVIRONMENT || "").trim().toLowerCase() ===
-  "production";
+  normalizarMercadoPagoEnvironment() === MP_ENVIRONMENT_PRODUCTION;
+
+const esMercadoPagoSandbox = () =>
+  normalizarMercadoPagoEnvironment() === MP_ENVIRONMENT_SANDBOX;
+
+const esTokenPruebaMercadoPago = (token) =>
+  String(token || "").trim().toUpperCase().startsWith("TEST-");
 
 const getMercadoPagoTokenPrefix = () => {
   const token = String(process.env.MP_ACCESS_TOKEN || "").trim();
 
   if (!token) return "missing";
-  if (token.startsWith("APP_USR-")) return "APP_USR";
-  if (token.startsWith("TEST")) return "TEST";
+  if (token.startsWith("APP_USR-")) return "APP_USR-";
+  if (token.startsWith("TEST-")) return "TEST-";
 
-  return token.slice(0, 4) || "unknown";
+  return "other";
 };
 
 const logMercadoPagoConfig = () => {
   console.log("MP token exists:", Boolean(process.env.MP_ACCESS_TOKEN));
   console.log("MP token prefix:", getMercadoPagoTokenPrefix());
-  console.log("MP environment:", process.env.MP_ENVIRONMENT || "");
+  console.log("MP environment:", normalizarMercadoPagoEnvironment() || "invalid");
   console.log("MP production mode:", esMercadoPagoProduccion());
+  console.log("MP sandbox mode:", esMercadoPagoSandbox());
+};
+
+const pareceEmailPruebaMercadoPago = (email) =>
+  /test_user|testuser|buyer_test|comprador_test|seller_test|vendedor_test/i.test(
+    String(email || ""),
+  );
+
+const enmascararEmail = (email) => {
+  const [localPart = "", domain = ""] = String(email || "").split("@");
+
+  if (!localPart || !domain) return "";
+
+  return `${localPart.slice(0, 2)}***@${domain}`;
+};
+
+const resumirUrlCheckout = (checkoutUrl) => {
+  try {
+    const parsedUrl = new URL(checkoutUrl);
+    return `${parsedUrl.origin}${parsedUrl.pathname}`;
+  } catch {
+    return checkoutUrl ? "[url-no-valida]" : "";
+  }
+};
+
+const logMercadoPagoPreferencia = ({ body, result, checkoutUrl }) => {
+  const payerEmail = String(body?.payer?.email || "").trim();
+  let checkoutUrlType = "unexpected_non_init_point";
+
+  if (checkoutUrl && checkoutUrl === result?.init_point) {
+    checkoutUrlType = "init_point";
+  } else if (checkoutUrl && checkoutUrl === result?.sandbox_init_point) {
+    checkoutUrlType = "sandbox_init_point";
+  }
+
+  console.log("MP payer email provided:", Boolean(payerEmail));
+  console.log(
+    "MP payer email looks test:",
+    pareceEmailPruebaMercadoPago(payerEmail),
+  );
+
+  if (payerEmail) {
+    console.log("MP payer email masked:", enmascararEmail(payerEmail));
+  }
+
+  console.log("MP checkout URL type:", checkoutUrlType);
+  console.log("MP checkout URL host/path:", resumirUrlCheckout(checkoutUrl));
+  console.log("MP success URL:", resumirUrlCheckout(body?.back_urls?.success));
+  console.log("MP failure URL:", resumirUrlCheckout(body?.back_urls?.failure));
+  console.log("MP pending URL:", resumirUrlCheckout(body?.back_urls?.pending));
+};
+
+const validarCheckoutMercadoPago = () => {
+  if (esMercadoPagoProduccion() || esMercadoPagoSandbox()) {
+    return;
+  }
+
+  const error = new Error("MP_ENVIRONMENT debe ser production o sandbox");
+  error.status = 503;
+  error.publicMessage = "Mercado Pago no esta configurado correctamente";
+  throw error;
 };
 
 const esHostnameLocal = (hostname) =>
@@ -117,6 +208,16 @@ const validarUrlPublicaProduccion = (value, key) => {
   }
 
   return url;
+};
+
+const resolverUrlRetorno = (key, fallbackUrl) => {
+  const configuredUrl = normalizarUrlBase(process.env[key]);
+
+  if (!configuredUrl) {
+    return fallbackUrl;
+  }
+
+  return validarUrlPublicaProduccion(configuredUrl, key);
 };
 
 const resolverFrontendUrl = () => {
@@ -159,6 +260,25 @@ const resolverBackendBaseUrl = (req) => {
   } catch {
     return "";
   }
+};
+
+const validarCuentaCompradoraDistinta = (req) => {
+  const sellerEmail = String(process.env.MP_SELLER_EMAIL || "")
+    .trim()
+    .toLowerCase();
+  const buyerEmail = String(req.email || "").trim().toLowerCase();
+
+  if (!sellerEmail || !buyerEmail || sellerEmail !== buyerEmail) {
+    return;
+  }
+
+  const error = new Error(
+    "La cuenta compradora no puede ser la misma que la cuenta vendedora",
+  );
+  error.status = 400;
+  error.publicMessage =
+    "Usa una cuenta compradora distinta de la cuenta que cobra";
+  throw error;
 };
 
 const extraerPaymentIdWebhook = (req) => {
@@ -347,6 +467,9 @@ const sincronizarPedidoConPago = async ({
 
 export const crearPreferencia = async (req, res) => {
   try {
+    validarCheckoutMercadoPago();
+    validarCuentaCompradoraDistinta(req);
+
     const pedido = await Pedido.findById(req.body.pedidoId);
 
     if (!pedido) {
@@ -379,8 +502,6 @@ export const crearPreferencia = async (req, res) => {
     }
 
     const frontUrl = resolverFrontendUrl();
-    const esEntornoLocal =
-      frontUrl.includes("localhost") || frontUrl.includes("127.0.0.1");
     const configuredNotificationUrl = process.env.MP_WEBHOOK_URL
       ? validarUrlPublicaProduccion(process.env.MP_WEBHOOK_URL, "MP_WEBHOOK_URL")
       : validarUrlPublicaProduccion(
@@ -400,9 +521,18 @@ export const crearPreferencia = async (req, res) => {
     const body = {
       items: crearItemsPreferencia(pedido),
       back_urls: {
-        success: `${frontUrl}/pago/success`,
-        failure: `${frontUrl}/pago/failure`,
-        pending: `${frontUrl}/pago/pending`,
+        success: resolverUrlRetorno(
+          "MP_SUCCESS_URL",
+          `${frontUrl}/pago/success`,
+        ),
+        failure: resolverUrlRetorno(
+          "MP_FAILURE_URL",
+          `${frontUrl}/pago/failure`,
+        ),
+        pending: resolverUrlRetorno(
+          "MP_PENDING_URL",
+          `${frontUrl}/pago/pending`,
+        ),
       },
       external_reference: pedido._id.toString(),
       metadata: {
@@ -414,9 +544,7 @@ export const crearPreferencia = async (req, res) => {
       body.notification_url = notificationUrl;
     }
 
-    if (!esEntornoLocal) {
-      body.auto_return = "approved";
-    }
+    body.auto_return = "approved";
 
     logMercadoPagoConfig();
 
@@ -426,13 +554,24 @@ export const crearPreferencia = async (req, res) => {
     pedido.pago.preferenceId = result.id;
     await pedido.save();
 
-    const checkoutUrl = result.init_point;
+    // En sandbox el frontend debe abrir sandbox_init_point; en produccion, init_point.
+    const checkoutUrl = esMercadoPagoSandbox()
+      ? result.sandbox_init_point || result.init_point
+      : result.init_point;
 
-    console.log("MP checkout URL selected:", "init_point");
+    if (!checkoutUrl) {
+      const error = new Error("Mercado Pago no devolvio una URL de checkout");
+      error.status = 502;
+      error.publicMessage = "Mercado Pago no devolvio una URL de pago valida";
+      throw error;
+    }
+
+    logMercadoPagoPreferencia({ body, result, checkoutUrl });
 
     const responseBody = {
       id: result.id,
-      init_point: checkoutUrl,
+      init_point: result.init_point || "",
+      sandbox_init_point: result.sandbox_init_point || "",
     };
 
     return res.status(200).json(responseBody);

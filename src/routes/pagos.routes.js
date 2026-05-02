@@ -22,6 +22,14 @@ const pagosRateLimit = createRateLimiter({
 router.post("/webhook", pagosRateLimit, recibirWebhookMercadoPago);
 
 router.post(
+  "/crear-preferencia",
+  verificarJWT,
+  pagosRateLimit,
+  validacionCrearPreferencia,
+  crearPreferencia,
+);
+
+router.post(
   "/checkout",
   verificarJWT,
   pagosRateLimit,

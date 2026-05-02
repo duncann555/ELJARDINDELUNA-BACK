@@ -79,9 +79,11 @@ No es obligatorio usar `api`, pero es la opcion mas limpia para separar frontend
 
 - `NODE_ENV=production`
 - `FRONTEND_URL=https://www.eljardindeluna.ar`
+- `BACKEND_PUBLIC_URL=https://tu-backend-real.onrender.com`
 - `ADMIN_PASSWORD=<tu password admin en Render>`
 - `ADMIN_TOKEN_EXPIRES_IN=30m`
 - `MP_ENVIRONMENT=production`
+- `MP_ACCESS_TOKEN=APP_USR-...`
 - `CORS_ORIGINS=https://www.eljardindeluna.ar,https://eljardindeluna.ar`
 - `ALLOW_REQUESTS_WITHOUT_ORIGIN=false`
 - `FIXED_SHIPPING_COST=15000`
@@ -100,8 +102,52 @@ No es obligatorio usar `api`, pero es la opcion mas limpia para separar frontend
 - `PASSWORD_RESET_STORE_NAME`
 - `MP_WEBHOOK_URL`
 - `MP_NOTIFICATION_URL`
+- `MP_SUCCESS_URL`
+- `MP_FAILURE_URL`
+- `MP_PENDING_URL`
+- `MP_SELLER_EMAIL`
 
 `MP_WEBHOOK_URL` o `MP_NOTIFICATION_URL`, si se configuran en produccion, deben apuntar al backend publico con HTTPS. No uses localhost para webhooks productivos.
+
+`MP_SUCCESS_URL`, `MP_FAILURE_URL` y `MP_PENDING_URL` son opcionales. Si no se configuran, el backend usa `FRONTEND_URL` y arma:
+
+```bash
+${FRONTEND_URL}/pago/success
+${FRONTEND_URL}/pago/failure
+${FRONTEND_URL}/pago/pending
+```
+
+En produccion esas URLs deben ser HTTPS y no pueden apuntar a localhost.
+
+## Mercado Pago en sandbox/desarrollo
+
+Para probar Checkout Pro sin cuentas reales:
+
+```bash
+NODE_ENV=development
+MP_ENVIRONMENT=sandbox
+MP_ACCESS_TOKEN=TEST-...
+FRONTEND_URL=http://localhost:5173
+```
+
+Usa siempre cuentas de prueba creadas desde Mercado Pago: un vendedor de prueba para generar el token `TEST-...` y un comprador de prueba distinto para pagar desde Checkout Pro. No inicies sesion ni pagues con una cuenta real cuando estas usando sandbox.
+
+En sandbox el backend usa `sandbox_init_point` cuando Mercado Pago lo devuelve. Los logs solo muestran si el token empieza con `TEST-` o `APP_USR-`; nunca se imprime el token completo.
+
+## Mercado Pago en produccion
+
+El checkout productivo requiere:
+
+```bash
+MP_ENVIRONMENT=production
+MP_ACCESS_TOKEN=APP_USR-...
+FRONTEND_URL=https://www.eljardindeluna.ar
+BACKEND_PUBLIC_URL=https://tu-backend-real.onrender.com
+```
+
+El backend rechaza credenciales `TEST-` en produccion y solo devuelve `init_point`. No se debe reutilizar un link viejo de Mercado Pago. Para probar produccion, usa una cuenta compradora real distinta de la cuenta vendedora. Para sandbox, usa comprador y vendedor de prueba, sin mezclar con cuentas reales.
+
+Si configuras `MP_SELLER_EMAIL`, el backend bloquea el checkout cuando el usuario autenticado tiene el mismo email que la cuenta vendedora. Mercado Pago tambien puede rechazar el pago si, dentro de Checkout Pro, intentas pagar con la misma cuenta que cobra.
 
 ## Frontend y CORS
 
