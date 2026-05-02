@@ -570,6 +570,7 @@ export const crearPreferencia = async (req, res) => {
 
     const responseBody = {
       id: result.id,
+      environment: normalizarMercadoPagoEnvironment(),
       init_point: result.init_point || "",
       sandbox_init_point: result.sandbox_init_point || "",
     };
