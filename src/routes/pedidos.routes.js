@@ -1,60 +1,22 @@
 import { Router } from "express";
-import {
-  crearPedido,
-  listarPedidos,
-  subirComprobanteTransferencia,
-  actualizarEstadoPedido,
-  eliminarPedido,
-} from "../controllers/pedidos.controllers.js";
-
-import upload from "../helpers/upload.js";
-import errorMulter from "../middlewares/ErrorMulter.js";
-import verificarJWT from "../middlewares/verificarJWT.js";
-import { esAdministrador } from "../middlewares/verificarRoles.js";
-import validacionPedido from "../middlewares/validacionPedido.js";
-import validacionCambioEstado from "../middlewares/validacionCambioEstado.js";
-import validacionID from "../middlewares/validacionID.js";
+import { obtenerEstadoPublicoPedido } from "../controllers/pedidos.controllers.js";
+import asyncHandler from "../middlewares/asyncHandler.js";
+import noStore from "../middlewares/noStore.js";
+import createRateLimiter from "../middlewares/createRateLimiter.js";
 
 const router = Router();
+const orderStatusLimiter = createRateLimiter({
+  windowMs: 10 * 60_000,
+  max: 30,
+  message: "Demasiadas consultas de pedido. Probá nuevamente más tarde.",
+  keyPrefix: "order-status",
+});
 
-/* ==========================================
-   RUTAS PARA USUARIOS LOGUEADOS
-========================================== */
-
-// Crear pedido
-router.post("/", verificarJWT, validacionPedido, crearPedido);
-
-// Listar pedidos (admin ve todos / usuario solo los suyos)
-router.get("/", verificarJWT, listarPedidos);
-
-router.post(
-  "/:id/comprobante-transferencia",
-  verificarJWT,
-  validacionID,
-  upload.single("comprobanteTransferencia"),
-  errorMulter,
-  subirComprobanteTransferencia,
-);
-
-/* ==========================================
-   RUTAS SOLO PARA ADMIN
-========================================== */
-
-router.patch(
-  "/:id",
-  verificarJWT,
-  esAdministrador,
-  validacionID,
-  validacionCambioEstado,
-  actualizarEstadoPedido,
-);
-
-router.delete(
-  "/:id",
-  verificarJWT,
-  esAdministrador,
-  validacionID,
-  eliminarPedido,
+router.get(
+  "/:numero/estado",
+  orderStatusLimiter,
+  noStore,
+  asyncHandler(obtenerEstadoPublicoPedido),
 );
 
 export default router;

@@ -1,55 +1,43 @@
 services:
   - type: web
     name: el-jardin-de-luna-backend
-    env: node
-    buildCommand: npm install
+    runtime: node
+    buildCommand: npm ci
     startCommand: npm start
-    autoDeploy: true
+    autoDeployTrigger: off
     healthCheckPath: /api/health
     envVars:
+      - key: PORT
+        value: "3001"
       - key: NODE_ENV
         value: production
+      - key: MONGODB_URI
+        sync: false
       - key: FRONTEND_URL
         value: https://www.eljardindeluna.ar
       - key: CORS_ORIGINS
         value: https://www.eljardindeluna.ar,https://eljardindeluna.ar
-      - key: ALLOW_REQUESTS_WITHOUT_ORIGIN
-        value: "false"
-      - key: FIXED_SHIPPING_COST
-        value: "15000"
-      - key: MONGODB
+      - key: BACKEND_PUBLIC_URL
         sync: false
-      - key: SECRETJWT
+      - key: MERCADO_PAGO_MODE
+        value: production
+      - key: MERCADO_PAGO_ACCESS_TOKEN
         sync: false
+      - key: MERCADO_PAGO_WEBHOOK_SECRET
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
       - key: ADMIN_EMAIL
         sync: false
-      - key: ADMIN_PASSWORD
+      - key: ADMIN_PASSWORD_HASH
         sync: false
       - key: ADMIN_TOKEN_EXPIRES_IN
         value: 30m
-      - key: MP_ENVIRONMENT
-        value: production
-      - key: MP_ACCESS_TOKEN
-        sync: false
-      - key: MP_SELLER_EMAIL
-        sync: false
-      - key: MP_SUCCESS_URL
-        sync: false
-      - key: MP_FAILURE_URL
-        sync: false
-      - key: MP_PENDING_URL
-        sync: false
-      - key: MP_WEBHOOK_URL
-        sync: false
-      - key: BACKEND_PUBLIC_URL
-        sync: false
+      - key: SHIPPING_COST
+        value: "15000"
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
-        sync: false
-      - key: MAIL_USER
-        sync: false
-      - key: MAIL_PASS
         sync: false

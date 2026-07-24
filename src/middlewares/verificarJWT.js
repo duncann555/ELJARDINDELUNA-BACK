@@ -1,60 +1,56 @@
 import jwt from "jsonwebtoken";
 import {
-  adminTokenVersionVigente,
-  esRolAdministrador,
+  ADMIN_JWT_AUDIENCE,
+  ADMIN_JWT_ISSUER,
+  ADMIN_ROLE,
+  getAdminEmail,
+  isCurrentAdminTokenVersion,
 } from "../helpers/adminAuth.js";
 
-const JWT_ISSUER = "el-jardin-de-luna-backend";
+const unauthorized = (res) =>
+  res.status(401).json({
+    error: {
+      code: "INVALID_ADMIN_SESSION",
+      message: "La sesión administrativa no es válida.",
+    },
+  });
 
-const obtenerTokenDesdeRequest = (req) => {
-  const tokenHeader = req.header("x-token");
+const verificarAdminJWT = (req, res, next) => {
+  const authorization = String(req.get("Authorization") || "");
+  if (!authorization.startsWith("Bearer ")) return unauthorized(res);
 
-  if (tokenHeader) {
-    return tokenHeader;
+  const token = authorization.slice(7).trim();
+  const secret = String(process.env.JWT_SECRET || "").trim();
+  if (!secret) {
+    return res.status(500).json({
+      error: {
+        code: "JWT_NOT_CONFIGURED",
+        message: "La autenticación administrativa no está configurada.",
+      },
+    });
   }
 
-  const authorization = req.header("Authorization") || "";
-
-  if (authorization.startsWith("Bearer ")) {
-    return authorization.slice(7).trim();
-  }
-
-  return "";
-};
-
-const verificarJWT = (req, res, next) => {
   try {
-    const token = obtenerTokenDesdeRequest(req);
-    const secret = process.env.SECRETJWT;
-
-    if (!token) {
-      return res.status(401).json({ mensaje: "No hay token en la peticion" });
-    }
-
-    if (!secret) {
-      return res.status(500).json({ mensaje: "La autenticacion no esta configurada" });
-    }
-
     const payload = jwt.verify(token, secret, {
       algorithms: ["HS256"],
-      issuer: JWT_ISSUER,
+      issuer: ADMIN_JWT_ISSUER,
+      audience: ADMIN_JWT_AUDIENCE,
+      subject: "admin",
     });
 
     if (
-      esRolAdministrador(payload.rol) &&
-      !adminTokenVersionVigente(payload.adminPasswordVersion)
+      payload.role !== ADMIN_ROLE ||
+      payload.email !== getAdminEmail() ||
+      !isCurrentAdminTokenVersion(payload.tokenVersion)
     ) {
-      return res.status(401).json({ mensaje: "La sesion admin ya no es valida" });
+      return unauthorized(res);
     }
 
-    req.usuarioId = payload.uid;
-    req.rol = payload.rol;
-    req.email = payload.email;
-
-    next();
+    req.admin = { email: payload.email };
+    return next();
   } catch {
-    return res.status(401).json({ mensaje: "El token no es valido" });
+    return unauthorized(res);
   }
 };
 
-export default verificarJWT;
+export default verificarAdminJWT;

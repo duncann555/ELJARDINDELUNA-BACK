@@ -1,4 +1,12 @@
 import cloudinary from "./cloudinary.js";
+import AppError from "./AppError.js";
+
+const hasCloudinaryConfiguration = () =>
+  [
+    process.env.CLOUDINARY_CLOUD_NAME,
+    process.env.CLOUDINARY_API_KEY,
+    process.env.CLOUDINARY_API_SECRET,
+  ].every((value) => String(value || "").trim());
 
 const cloudinaryUploader = (
   file,
@@ -13,6 +21,16 @@ const cloudinaryUploader = (
       resolve(null);
       return;
     }
+    if (!hasCloudinaryConfiguration()) {
+      reject(
+        new AppError(
+          503,
+          "CLOUDINARY_NOT_CONFIGURED",
+          "La carga de imágenes no está configurada.",
+        ),
+      );
+      return;
+    }
 
     const uploadStream = cloudinary.uploader.upload_stream(
       {
@@ -22,7 +40,6 @@ const cloudinaryUploader = (
       },
       (error, result) => {
         if (error) {
-          console.error("Error interno de Cloudinary:", error);
           reject(error);
         } else {
           resolve(result);
@@ -33,5 +50,8 @@ const cloudinaryUploader = (
     uploadStream.end(file.buffer);
   });
 };
+
+export const eliminarImagenCloudinary = (publicId) =>
+  cloudinary.uploader.destroy(publicId, { resource_type: "image" });
 
 export default cloudinaryUploader;

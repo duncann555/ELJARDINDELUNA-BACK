@@ -1,54 +1,35 @@
-import { createHash, timingSafeEqual } from "crypto";
+import { createHash } from "node:crypto";
+import bcrypt from "bcrypt";
 
-const ADMIN_ROLE = "Administrador";
-const DEFAULT_ADMIN_TOKEN_EXPIRES_IN = "30m";
+export const ADMIN_ROLE = "admin";
+export const ADMIN_JWT_ISSUER = "el-jardin-de-luna-backend";
+export const ADMIN_JWT_AUDIENCE = "el-jardin-de-luna-admin";
 
-export const esRolAdministrador = (rol) => rol === ADMIN_ROLE;
+export const getAdminEmail = () =>
+  String(process.env.ADMIN_EMAIL || "")
+    .trim()
+    .toLowerCase();
 
-export const obtenerAdminPassword = () =>
-  String(process.env.ADMIN_PASSWORD || "");
+export const getAdminPasswordHash = () =>
+  String(process.env.ADMIN_PASSWORD_HASH || "").trim();
 
-export const adminPasswordConfigurada = () =>
-  obtenerAdminPassword().trim().length > 0;
+export const compareAdminPassword = (password) => {
+  const passwordHash = getAdminPasswordHash();
+  if (!passwordHash || typeof password !== "string") return false;
+  return bcrypt.compare(password, passwordHash);
+};
+
+export const getAdminTokenVersion = () => {
+  const passwordHash = getAdminPasswordHash();
+  return passwordHash
+    ? createHash("sha256").update(passwordHash).digest("hex")
+    : "";
+};
+
+export const isCurrentAdminTokenVersion = (candidate) => {
+  const current = getAdminTokenVersion();
+  return Boolean(current && candidate && current === candidate);
+};
 
 export const getAdminTokenExpiresIn = () =>
-  String(process.env.ADMIN_TOKEN_EXPIRES_IN || DEFAULT_ADMIN_TOKEN_EXPIRES_IN);
-
-export const getAdminPasswordVersion = () => {
-  const password = obtenerAdminPassword();
-
-  if (!password) return "";
-
-  return createHash("sha256").update(password).digest("hex");
-};
-
-export const logAdminPasswordStatus = () => {
-  const password = obtenerAdminPassword();
-
-  console.log("ADMIN_PASSWORD configurada:", Boolean(password));
-  console.log("ADMIN_PASSWORD length:", password.length);
-};
-
-export const compararAdminPassword = (candidatePassword) => {
-  const configuredPassword = obtenerAdminPassword();
-  const candidate = String(candidatePassword || "");
-
-  if (!configuredPassword || !candidate) {
-    return false;
-  }
-
-  const configuredBuffer = Buffer.from(configuredPassword);
-  const candidateBuffer = Buffer.from(candidate);
-
-  if (configuredBuffer.length !== candidateBuffer.length) {
-    return false;
-  }
-
-  return timingSafeEqual(configuredBuffer, candidateBuffer);
-};
-
-export const adminTokenVersionVigente = (tokenVersion) => {
-  const currentVersion = getAdminPasswordVersion();
-
-  return Boolean(currentVersion && tokenVersion && tokenVersion === currentVersion);
-};
+  String(process.env.ADMIN_TOKEN_EXPIRES_IN || "30m").trim();

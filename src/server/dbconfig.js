@@ -1,47 +1,48 @@
 import mongoose from "mongoose";
 
-const globalConnection = globalThis;
+const connectionCache = globalThis.__elJardinMongoConnection || {
+  connection: null,
+  promise: null,
+};
+globalThis.__elJardinMongoConnection = connectionCache;
 
-if (!globalConnection.__elJardinDeLunaMongo) {
-  globalConnection.__elJardinDeLunaMongo = {
-    connection: null,
-    promise: null,
+if (!globalThis.__elJardinMongoListenersConfigured) {
+  const clearConnectionCache = () => {
+    connectionCache.connection = null;
+    if (mongoose.connection.readyState === 0) {
+      connectionCache.promise = null;
+    }
   };
+  mongoose.connection.on("disconnected", clearConnectionCache);
+  mongoose.connection.on("close", clearConnectionCache);
+  globalThis.__elJardinMongoListenersConfigured = true;
 }
 
-const cache = globalConnection.__elJardinDeLunaMongo;
-
 export const conectarBD = async () => {
-  try {
-    if (!process.env.MONGODB) {
-      throw new Error("La variable de entorno MONGODB no esta definida");
-    }
+  const mongoUri = String(process.env.MONGODB_URI || "").trim();
+  if (!mongoUri) throw new Error("MONGODB_URI no está configurada");
 
-    if (cache.connection || mongoose.connection.readyState === 1) {
-      cache.connection = mongoose.connection;
-      return cache.connection;
-    }
-
-    if (!cache.promise) {
-      cache.promise = mongoose
-        .connect(process.env.MONGODB, {
-          serverSelectionTimeoutMS: 10000,
-        })
-        .then((mongooseInstance) => {
-          console.info("BD CONECTADA CORRECTAMENTE");
-          return mongooseInstance.connection;
-        });
-    }
-
-    cache.connection = await cache.promise;
-    return cache.connection;
-  } catch (error) {
-    cache.promise = null;
-    cache.connection = null;
-    console.error("ERROR CRITICO DE CONEXION A MONGODB:");
-    console.error(error.message);
-    throw error;
+  if (mongoose.connection.readyState === 1) {
+    connectionCache.connection = mongoose.connection;
+    return connectionCache.connection;
   }
+  connectionCache.connection = null;
+
+  if (!connectionCache.promise) {
+    connectionCache.promise = mongoose
+      .connect(mongoUri, {
+        autoIndex: process.env.NODE_ENV !== "production",
+        serverSelectionTimeoutMS: 10_000,
+      })
+      .then((instance) => instance.connection)
+      .catch((error) => {
+        connectionCache.promise = null;
+        throw error;
+      });
+  }
+
+  connectionCache.connection = await connectionCache.promise;
+  return connectionCache.connection;
 };
 
 export default mongoose;

@@ -1,211 +1,199 @@
 import Producto from "../models/producto.js";
-import subirImagenCloudinary from "../helpers/cloudinaryUploader.js";
-import { controlarStock } from "../helpers/controlarStock.js";
-import { responderError } from "../helpers/safeError.js";
+import subirImagenCloudinary, {
+  eliminarImagenCloudinary,
+} from "../helpers/cloudinaryUploader.js";
+import AppError from "../helpers/AppError.js";
 import {
-  PRODUCTO_CAMPOS_EDITABLES,
-  normalizarProductoCategoria,
-} from "../constants/productos.js";
+  findPublicProduct,
+  isCompletePublicProductDTO,
+  parseImagesInput,
+  publicProductFilter,
+  resolveUniqueSlug,
+  toProductDTO,
+} from "../services/productos.service.js";
 
-const IMAGEN_PLACEHOLDER = "https://placehold.co/600x400?text=Sin+Imagen";
-const FILTRO_PRODUCTO_PUBLICO = {
-  estado: "Activo",
-};
-
-const construirPayloadProducto = (body, imagenUrl) => ({
-  nombre: body.nombre,
-  categoria: normalizarProductoCategoria(body.categoria),
-  descripcion: body.descripcion,
-  precio: body.precio,
-  stock: body.stock,
-  estado: body.estado,
-  oferta: false,
-  destacado: body.destacado,
-  imagenUrl,
-});
-
-const asignarCamposEditables = (producto, body) => {
-  for (const campo of PRODUCTO_CAMPOS_EDITABLES) {
-    if (body[campo] !== undefined) {
-      producto[campo] =
-        campo === "categoria"
-          ? normalizarProductoCategoria(body[campo])
-          : body[campo];
-    }
+export const assertProductImageCapacity = ({ hasFile, requestedImages }) => {
+  if (hasFile && requestedImages.length >= 8) {
+    throw new AppError(
+      400,
+      "TOO_MANY_PRODUCT_IMAGES",
+      "Para subir una imagen nueva, quitá al menos una de las ocho URLs existentes.",
+    );
   }
 };
 
-const serializarProducto = (producto) => {
-  const productoPlano =
-    typeof producto?.toObject === "function" ? producto.toObject() : producto;
-
+const buildProductPayload = async ({ body, file, currentProduct }) => {
+  const requestedSlug =
+    body.slug === undefined ? currentProduct?.slug : body.slug;
+  const slug = await resolveUniqueSlug({
+    requestedSlug,
+    name: body.name,
+    excludeId: currentProduct?._id,
+  });
+  const requestedImages =
+    body.images === undefined
+      ? currentProduct?.images || []
+      : parseImagesInput(body.images);
+  assertProductImageCapacity({
+    hasFile: Boolean(file),
+    requestedImages,
+  });
+  const uploadedImage = file ? await subirImagenCloudinary(file) : null;
+  const images = uploadedImage?.secure_url
+    ? [
+        uploadedImage.secure_url,
+        ...requestedImages.filter((image) => image !== uploadedImage.secure_url),
+      ]
+    : requestedImages;
   return {
-    ...productoPlano,
-    categoria: normalizarProductoCategoria(productoPlano?.categoria),
+    payload: {
+      name: body.name,
+      slug,
+      botanicalName: body.botanicalName || "",
+      category: body.category,
+      description: body.description,
+      presentation: body.presentation || "",
+      ingredients: body.ingredients || "",
+      warnings: body.warnings || "",
+      price: Number(body.price),
+      stock: Number(body.stock),
+      images,
+      active:
+        typeof body.active === "boolean"
+          ? body.active
+          : currentProduct?.active ?? true,
+    },
+    uploadedImage,
   };
 };
 
-const escapeRegex = (value) =>
-  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export const cleanupNewCloudinaryUpload = async (
+  uploadedImage,
+  destroyImage = eliminarImagenCloudinary,
+) => {
+  const publicId = String(uploadedImage?.public_id || "").trim();
+  if (!publicId) return false;
 
-const subirImagenProducto = async (file) => {
-  if (!file) {
-    return IMAGEN_PLACEHOLDER;
+  try {
+    await destroyImage(publicId);
+    return true;
+  } catch (error) {
+    console.error("[cloudinary_cleanup]", {
+      name: String(error?.name || "Error"),
+      code: String(error?.code || "CLOUDINARY_CLEANUP_FAILED"),
+      message: String(error?.message || "Cleanup failed").slice(0, 200),
+    });
+    return false;
   }
-
-  const resultado = await subirImagenCloudinary(file);
-  return resultado.secure_url;
 };
 
-export const crearProducto = async (req, res) => {
-  try {
-    const imagenUrl = await subirImagenProducto(req.file);
-    const nuevoProducto = new Producto(
-      construirPayloadProducto(req.body, imagenUrl),
-    );
+export const buildProductConcurrencyFilter = (product) => ({
+  _id: product._id,
+  stock: product.stock,
+  ...(product.updatedAt
+    ? { updatedAt: product.updatedAt }
+    : { updatedAt: { $exists: false } }),
+});
 
-    controlarStock(nuevoProducto);
-    await nuevoProducto.save();
+export const listarProductos = async (_req, res) => {
+  const products = await Producto.find(publicProductFilter).sort({
+    createdAt: -1,
+  });
 
-    return res.status(201).json({
-      mensaje: "Producto creado exitosamente",
-      producto: serializarProducto(nuevoProducto),
-    });
-  } catch (error) {
-    return responderError(res, 500, "Error al crear el producto", error);
-  }
+  return res.json({
+    data: {
+      productos: products.map(toProductDTO).filter(isCompletePublicProductDTO),
+    },
+  });
+};
+
+export const obtenerProducto = async (req, res) => {
+  const product = await findPublicProduct(req.params.identifier);
+  return res.json({ data: { producto: toProductDTO(product) } });
 };
 
 export const listarProductosAdmin = async (_req, res) => {
-  try {
-    const productos = await Producto.find().sort({ createdAt: -1 });
-    return res.status(200).json(productos.map(serializarProducto));
-  } catch (error) {
-    return responderError(res, 500, "Error al listar los productos", error);
-  }
+  const products = await Producto.find().sort({ createdAt: -1 });
+  return res.json({
+    data: {
+      productos: products.map(toProductDTO),
+    },
+  });
 };
 
-export const listarProductos = async (_req, res) => {
-  try {
-    const productos = await Producto.find(FILTRO_PRODUCTO_PUBLICO).sort({
-      createdAt: -1,
-    });
-    return res.status(200).json(productos.map(serializarProducto));
-  } catch (error) {
-    return responderError(res, 500, "Error al listar los productos", error);
+export const obtenerProductoAdmin = async (req, res) => {
+  const product = await Producto.findById(req.params.id);
+  if (!product) {
+    throw new AppError(404, "PRODUCT_NOT_FOUND", "Producto no encontrado.");
   }
+  return res.json({ data: { producto: toProductDTO(product) } });
 };
 
-export const obtenerProductoID = async (req, res) => {
+export const crearProducto = async (req, res) => {
+  const { payload, uploadedImage } = await buildProductPayload({
+    body: req.body,
+    file: req.file,
+  });
+  let product;
   try {
-    const producto = await Producto.findOne({
-      _id: req.params.id,
-      ...FILTRO_PRODUCTO_PUBLICO,
-    });
-
-    if (!producto) {
-      return res.status(404).json({ mensaje: "Producto no encontrado" });
-    }
-
-    return res.status(200).json(serializarProducto(producto));
+    product = await Producto.create(payload);
   } catch (error) {
-    return responderError(res, 500, "Error al obtener el producto", error);
+    await cleanupNewCloudinaryUpload(uploadedImage);
+    throw error;
   }
+
+  return res.status(201).json({
+    data: {
+      producto: toProductDTO(product),
+    },
+  });
 };
 
 export const editarProducto = async (req, res) => {
-  try {
-    const producto = await Producto.findById(req.params.id);
-
-    if (!producto) {
-      return res.status(404).json({ mensaje: "Producto no encontrado" });
-    }
-
-    asignarCamposEditables(producto, req.body);
-    producto.categoria = normalizarProductoCategoria(producto.categoria);
-    producto.oferta = false;
-
-    if (req.file) {
-      producto.imagenUrl = await subirImagenProducto(req.file);
-    }
-
-    controlarStock(producto);
-    await producto.save();
-
-    return res.status(200).json({
-      mensaje: "Producto actualizado correctamente",
-      producto: serializarProducto(producto),
-    });
-  } catch (error) {
-    return responderError(res, 500, "Error al editar el producto", error);
+  const product = await Producto.findById(req.params.id);
+  if (!product) {
+    throw new AppError(404, "PRODUCT_NOT_FOUND", "Producto no encontrado.");
   }
-};
 
-export const cambiarEstadoProducto = async (req, res) => {
+  const { payload, uploadedImage } = await buildProductPayload({
+    body: req.body,
+    file: req.file,
+    currentProduct: product,
+  });
+  let updatedProduct;
   try {
-    const producto = await Producto.findById(req.params.id);
-
-    if (!producto) {
-      return res.status(404).json({ mensaje: "Producto no encontrado" });
-    }
-
-    producto.estado = req.body.estado;
-    await producto.save();
-
-    return res.status(200).json({
-      mensaje: "Estado del producto actualizado correctamente",
-      producto: serializarProducto(producto),
-    });
-  } catch (error) {
-    return responderError(
-      res,
-      500,
-      "Error al actualizar el estado del producto",
-      error,
+    updatedProduct = await Producto.findOneAndUpdate(
+      buildProductConcurrencyFilter(product),
+      { $set: payload },
+      { new: true, runValidators: true },
     );
+
+    if (!updatedProduct) {
+      const stillExists = await Producto.exists({ _id: req.params.id });
+      if (!stillExists) {
+        throw new AppError(404, "PRODUCT_NOT_FOUND", "Producto no encontrado.");
+      }
+      throw new AppError(
+        409,
+        "PRODUCT_EDIT_CONFLICT",
+        "El stock o el producto cambió durante la edición. Recargá e intentá nuevamente.",
+      );
+    }
+  } catch (error) {
+    await cleanupNewCloudinaryUpload(uploadedImage);
+    throw error;
   }
+
+  return res.json({ data: { producto: toProductDTO(updatedProduct) } });
 };
 
-export const eliminarProducto = async (req, res) => {
-  try {
-    const producto = await Producto.findByIdAndDelete(req.params.id);
-
-    if (!producto) {
-      return res.status(404).json({ mensaje: "Producto no encontrado" });
-    }
-
-    return res
-      .status(200)
-      .json({ mensaje: "Producto eliminado correctamente" });
-  } catch (error) {
-    return responderError(res, 500, "Error al eliminar el producto", error);
+export const cambiarActivoProducto = async (req, res) => {
+  const product = await Producto.findById(req.params.id);
+  if (!product) {
+    throw new AppError(404, "PRODUCT_NOT_FOUND", "Producto no encontrado.");
   }
-};
 
-export const filtrarProductoNombre = async (req, res) => {
-  try {
-    const nombre = String(req.query?.nombre || "").trim();
-
-    if (nombre.length > 80) {
-      return res.status(400).json({
-        mensaje: "El nombre no puede superar los 80 caracteres",
-      });
-    }
-
-    const productos = await Producto.find({
-      ...FILTRO_PRODUCTO_PUBLICO,
-      ...(nombre
-        ? {
-            nombre: {
-              $regex: escapeRegex(nombre),
-              $options: "i",
-            },
-          }
-        : {}),
-    }).sort({ createdAt: -1 });
-
-    return res.status(200).json(productos.map(serializarProducto));
-  } catch (error) {
-    return responderError(res, 500, "Error al filtrar productos", error);
-  }
+  product.active = req.body.active;
+  await product.save();
+  return res.json({ data: { producto: toProductDTO(product) } });
 };

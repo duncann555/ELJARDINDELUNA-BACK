@@ -1,13 +1,13 @@
-import { body } from "express-validator";
+import { body, param } from "express-validator";
 import resultadoValidacion from "./resultadoValidacion.js";
 
-const validarEstadoProducto = [
-  body("estado")
-    .notEmpty()
-    .withMessage("El estado es obligatorio")
-    .isIn(["Activo", "Inactivo"])
-    .withMessage("El estado debe ser 'Activo' o 'Inactivo'"),
+const validarActivoProducto = [
+  param("id").isMongoId().withMessage("El ID de producto no es válido."),
+  body("active")
+    .isBoolean()
+    .withMessage("active debe ser verdadero o falso.")
+    .toBoolean(),
   resultadoValidacion,
 ];
 
-export default validarEstadoProducto;
+export default validarActivoProducto;

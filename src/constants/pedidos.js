@@ -1,39 +1,58 @@
-export const ESTADO_PEDIDO_EN_ESPERA_PAGO = "En espera de pago";
-export const ESTADO_PEDIDO_PREPARANDO_ENVIO = "Preparando env\u00edo";
-export const ESTADO_PEDIDO_DESPACHADO = "Despachado";
-export const ESTADO_PEDIDO_ENTREGADO = "Entregado";
-export const ESTADO_PEDIDO_CANCELADO = "Cancelado";
+export const ORDER_STATUS_PENDING = "pendiente";
+export const ORDER_STATUS_PAID = "pagado";
+export const ORDER_STATUS_PREPARING = "preparando";
+export const ORDER_STATUS_SHIPPED = "enviado";
+export const ORDER_STATUS_DELIVERED = "entregado";
+export const ORDER_STATUS_CANCELLED = "cancelado";
 
-export const PEDIDO_ESTADOS = [
-  ESTADO_PEDIDO_EN_ESPERA_PAGO,
-  ESTADO_PEDIDO_PREPARANDO_ENVIO,
-  ESTADO_PEDIDO_DESPACHADO,
-  ESTADO_PEDIDO_ENTREGADO,
-  ESTADO_PEDIDO_CANCELADO,
+export const ORDER_STATUSES = [
+  ORDER_STATUS_PENDING,
+  ORDER_STATUS_PAID,
+  ORDER_STATUS_PREPARING,
+  ORDER_STATUS_SHIPPED,
+  ORDER_STATUS_DELIVERED,
+  ORDER_STATUS_CANCELLED,
 ];
 
-export const PEDIDO_ESTADOS_REQUIEREN_PAGO_APROBADO = [
-  ESTADO_PEDIDO_PREPARANDO_ENVIO,
-  ESTADO_PEDIDO_DESPACHADO,
-  ESTADO_PEDIDO_ENTREGADO,
-];
-
-export const puedeUsarEstadoPedidoConPago = ({
-  estadoPedido,
-  estadoPago,
-}) => {
-  if (estadoPago === "approved") {
-    return PEDIDO_ESTADOS.includes(estadoPedido);
-  }
-
-  return [
-    ESTADO_PEDIDO_EN_ESPERA_PAGO,
-    ESTADO_PEDIDO_CANCELADO,
-  ].includes(estadoPedido);
+const LEGACY_OPERATIONAL_STATUS_MAP = {
+  "En espera de pago": ORDER_STATUS_PENDING,
+  "Preparando envío": ORDER_STATUS_PREPARING,
+  Despachado: ORDER_STATUS_SHIPPED,
+  Entregado: ORDER_STATUS_DELIVERED,
+  Cancelado: ORDER_STATUS_CANCELLED,
 };
 
-export const pedidoDebeMantenerStockDescontado = ({
-  estadoPedido,
-  estadoPago,
-}) =>
-  estadoPago === "approved" && estadoPedido !== ESTADO_PEDIDO_CANCELADO;
+export const resolveOperationalStatus = (
+  canonicalStatus,
+  legacyStatus,
+) =>
+  ORDER_STATUSES.includes(canonicalStatus)
+    ? canonicalStatus
+    : LEGACY_OPERATIONAL_STATUS_MAP[legacyStatus];
+
+export const ORDER_STATUSES_ALLOW_STOCK_RESTORE = [
+  ORDER_STATUS_PENDING,
+  ORDER_STATUS_PAID,
+  ORDER_STATUS_PREPARING,
+  ORDER_STATUS_CANCELLED,
+];
+
+export const STOCK_STATE_PENDING = "pending";
+// Sólo se lee para pedidos creados por la implementación anterior.
+export const STOCK_STATE_RESERVED = "reserved";
+export const STOCK_STATE_COMMITTED = "committed";
+export const STOCK_STATE_RELEASED = "released";
+
+export const STOCK_STATES = [
+  STOCK_STATE_PENDING,
+  STOCK_STATE_RESERVED,
+  STOCK_STATE_COMMITTED,
+  STOCK_STATE_RELEASED,
+];
+
+export const DELIVERY_METHOD_HOME = "domicilio";
+export const DELIVERY_METHOD_PICKUP = "retiro";
+export const DELIVERY_METHODS = [
+  DELIVERY_METHOD_HOME,
+  DELIVERY_METHOD_PICKUP,
+];

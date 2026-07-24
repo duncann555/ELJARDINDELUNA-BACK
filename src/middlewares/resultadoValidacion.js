@@ -1,15 +1,29 @@
-import { validationResult } from "express-validator";
+import { matchedData, validationResult } from "express-validator";
 
 const resultadoValidacion = (req, res, next) => {
-  const errores = validationResult(req);
+  const result = validationResult(req);
 
-  if (!errores.isEmpty()) {
+  if (!result.isEmpty()) {
+    const fields = {};
+
+    for (const error of result.array({ onlyFirstError: true })) {
+      fields[error.path || "request"] = error.msg;
+    }
+
     return res.status(400).json({
-      mensaje: "Hay datos no validos en la solicitud",
-      errors: errores.array(),
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Revisá los datos ingresados.",
+        fields,
+      },
     });
   }
-  next();
+
+  req.validated = {
+    ...(req.validated || {}),
+    ...matchedData(req, { includeOptionals: true }),
+  };
+  return next();
 };
 
 export default resultadoValidacion;

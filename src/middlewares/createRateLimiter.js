@@ -1,73 +1,50 @@
-const obtenerIpCliente = (req) => {
-  const forwardedFor = req.headers["x-forwarded-for"];
-
-  if (typeof forwardedFor === "string" && forwardedFor.trim().length > 0) {
-    return forwardedFor.split(",")[0].trim();
-  }
-
-  return (
-    req.ip ||
-    req.socket?.remoteAddress ||
-    req.connection?.remoteAddress ||
-    "ip-desconocida"
-  );
+const asPositiveNumber = (value, fallback) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
 };
 
-const normalizarNumeroPositivo = (valor, fallback) => {
-  const numero = Number(valor);
-  return Number.isFinite(numero) && numero > 0 ? numero : fallback;
-};
-
-export const createRateLimiter = ({
-  windowMs = 60 * 1000,
+const createRateLimiter = ({
+  windowMs = 60_000,
   max = 100,
-  message = "Demasiadas solicitudes. Intenta nuevamente mas tarde.",
+  message = "Demasiadas solicitudes. Probá nuevamente más tarde.",
   keyPrefix = "global",
-  keyGenerator,
+  skip = () => false,
 } = {}) => {
-  const hits = new Map();
-  const ventana = normalizarNumeroPositivo(windowMs, 60 * 1000);
-  const limite = Math.max(1, Math.trunc(normalizarNumeroPositivo(max, 100)));
+  const requests = new Map();
+  const window = asPositiveNumber(windowMs, 60_000);
+  const limit = Math.trunc(asPositiveNumber(max, 100));
 
-  const cleanupInterval = setInterval(() => {
-    const ahora = Date.now();
-
-    for (const [key, entry] of hits.entries()) {
-      if (entry.resetAt <= ahora) {
-        hits.delete(key);
-      }
+  const cleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of requests) {
+      if (value.resetAt <= now) requests.delete(key);
     }
-  }, ventana);
-
-  cleanupInterval.unref?.();
+  }, window);
+  cleanup.unref?.();
 
   return (req, res, next) => {
-    if (req.method === "OPTIONS") {
+    if (req.method === "OPTIONS" || skip(req)) return next();
+
+    const now = Date.now();
+    const key = `${keyPrefix}:${req.ip || req.socket?.remoteAddress || "unknown"}`;
+    const current = requests.get(key);
+
+    if (!current || current.resetAt <= now) {
+      requests.set(key, { count: 1, resetAt: now + window });
       return next();
     }
 
-    const ahora = Date.now();
-    const clientKey =
-      typeof keyGenerator === "function"
-        ? keyGenerator(req)
-        : obtenerIpCliente(req);
-    const key = `${keyPrefix}:${clientKey}`;
-    const current = hits.get(key);
-
-    if (!current || current.resetAt <= ahora) {
-      hits.set(key, {
-        count: 1,
-        resetAt: ahora + ventana,
-      });
-      return next();
-    }
-
-    if (current.count >= limite) {
+    if (current.count >= limit) {
       res.setHeader(
         "Retry-After",
-        String(Math.max(1, Math.ceil((current.resetAt - ahora) / 1000))),
+        String(Math.max(1, Math.ceil((current.resetAt - now) / 1000))),
       );
-      return res.status(429).json({ mensaje: message });
+      return res.status(429).json({
+        error: {
+          code: "RATE_LIMITED",
+          message,
+        },
+      });
     }
 
     current.count += 1;

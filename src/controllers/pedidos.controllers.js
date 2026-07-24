@@ -1,375 +1,157 @@
 import mongoose from "mongoose";
 import Pedido from "../models/pedido.js";
-import Usuario from "../models/usuario.js";
+import AppError from "../helpers/AppError.js";
 import {
-  ESTADO_PEDIDO_CANCELADO,
-  ESTADO_PEDIDO_EN_ESPERA_PAGO,
-  ESTADO_PEDIDO_PREPARANDO_ENVIO,
-  pedidoDebeMantenerStockDescontado,
-  puedeUsarEstadoPedidoConPago,
+  findOrderByNumber,
+  toAdminOrderDTO,
+  toPublicOrderStatusDTO,
+  verifyOrderToken,
+} from "../services/pedidos.service.js";
+import {
+  normalizarStockStateLegacy,
+  restaurarStockPedido,
+} from "../services/pedidoInventory.service.js";
+import {
+  ORDER_STATUS_CANCELLED,
+  ORDER_STATUS_DELIVERED,
+  ORDER_STATUS_PAID,
+  ORDER_STATUS_PENDING,
+  ORDER_STATUS_PREPARING,
+  ORDER_STATUS_SHIPPED,
 } from "../constants/pedidos.js";
-import {
-  ESTADO_PAGO_APROBADO,
-  ESTADO_PAGO_PENDIENTE,
-  ESTADO_PAGO_RECHAZADO,
-  METODO_PAGO_TRANSFERENCIA,
-} from "../constants/pagos.js";
-import subirImagenCloudinary from "../helpers/cloudinaryUploader.js";
-import { responderError } from "../helpers/safeError.js";
-import { construirResumenPedido } from "../services/envios.service.js";
-import { sincronizarInventarioPedido } from "../services/pedidoInventory.service.js";
+import { PAYMENT_STATUS_APPROVED } from "../constants/pagos.js";
 
-const usuarioPuedeGestionarPedido = (pedido, req) =>
-  pedido.usuario.toString() === req.usuarioId || req.rol === "Administrador";
-
-const construirRespuestaPedido = (pedido) => ({
-  mensaje: "Pedido creado correctamente",
-  pedidoId: pedido._id,
-  subtotal: pedido.subtotal,
-  descuento: Number(pedido.descuento || 0),
-  total: pedido.total,
-  metodoPago: pedido.metodoPago,
-  estadoPago: pedido.estadoPago || pedido.pago?.estado || ESTADO_PAGO_PENDIENTE,
-  datosCliente: pedido.datosCliente || null,
-  datosEnvio: pedido.datosEnvio || null,
-  comprobanteTransferencia: pedido.comprobanteTransferencia || null,
-  envio: {
-    tipo: pedido.envio.tipo,
-    operador: pedido.envio.operador,
-    estadoEnvio: pedido.envio.estadoEnvio,
-    proveedor: pedido.envio.proveedor,
-    costo: pedido.envio.costo,
-    esGratis: pedido.envio.esGratis,
-    provincia: pedido.envio.provincia,
-    ciudad: pedido.envio.ciudad,
-    domicilio: pedido.envio.domicilio,
-    celular: pedido.envio.celular,
-    entreCalles: pedido.envio.entreCalles,
-    referencia: pedido.envio.referencia,
-    codigoPostal: pedido.envio.codigoPostal,
-    sucursalAndreani: pedido.envio.sucursalAndreani,
-    horarioConveniente: pedido.envio.horarioConveniente,
-  },
-});
-
-const aplicarEstadoPagoTransferencia = ({
-  pedido,
-  estadoPagoSolicitado,
-  estadoPedidoSolicitado,
-}) => {
-  const estadoPagoFinal =
-    estadoPagoSolicitado ||
-    pedido.estadoPago ||
-    pedido.pago?.estado ||
-    ESTADO_PAGO_PENDIENTE;
-
-  let estadoPedidoFinal = estadoPedidoSolicitado || pedido.estadoPedido;
-
-  if (!estadoPagoSolicitado) {
-    return { estadoPagoFinal, estadoPedidoFinal };
+export const obtenerEstadoPublicoPedido = async (req, res) => {
+  if (!verifyOrderToken(req.params.numero, req.get("X-Order-Token"))) {
+    throw new AppError(
+      403,
+      "INVALID_ORDER_TOKEN",
+      "No tenés permiso para consultar este pedido.",
+    );
   }
+  const order = await findOrderByNumber(req.params.numero);
 
-  pedido.estadoPago = estadoPagoFinal;
-  pedido.pago.estado = estadoPagoFinal;
-
-  if (estadoPagoFinal === ESTADO_PAGO_APROBADO) {
-    pedido.pago.fechaPago = new Date();
-    pedido.pago.statusDetalle = "confirmado_manualmente";
-
-    if (
-      (!estadoPedidoSolicitado ||
-        estadoPedidoSolicitado === ESTADO_PEDIDO_EN_ESPERA_PAGO) &&
-      pedido.estadoPedido === ESTADO_PEDIDO_EN_ESPERA_PAGO
-    ) {
-      estadoPedidoFinal = ESTADO_PEDIDO_PREPARANDO_ENVIO;
-    }
-  } else if (estadoPagoFinal === ESTADO_PAGO_RECHAZADO) {
-    pedido.pago.fechaPago = undefined;
-    pedido.pago.statusDetalle = "rechazado_manualmente";
-
-    if (
-      (!estadoPedidoSolicitado ||
-        estadoPedidoSolicitado === ESTADO_PEDIDO_EN_ESPERA_PAGO) &&
-      pedido.estadoPedido === ESTADO_PEDIDO_EN_ESPERA_PAGO
-    ) {
-      estadoPedidoFinal = ESTADO_PEDIDO_CANCELADO;
-    }
-  } else {
-    pedido.pago.fechaPago = undefined;
-    pedido.pago.statusDetalle = "pendiente_transferencia";
-  }
-
-  return { estadoPagoFinal, estadoPedidoFinal };
+  return res.json({
+    data: {
+      pedido: toPublicOrderStatusDTO(order),
+    },
+  });
 };
 
-export const crearPedido = async (req, res) => {
-  try {
-    const { productos, envio, metodoPago, guardarDatosEnvio } = req.body;
-    const usuarioId = req.usuarioId;
-
-    if (!usuarioId) {
-      return res.status(401).json({ mensaje: "Usuario no identificado" });
-    }
-
-    const usuario = await Usuario.findById(usuarioId).select("-password");
-
-    if (!usuario) {
-      return res.status(401).json({ mensaje: "Usuario no identificado" });
-    }
-
-    const resumen = await construirResumenPedido({ productos, envio, metodoPago });
-    const datosCliente = {
-      nombre: `${usuario.nombre || ""} ${usuario.apellido || ""}`.trim(),
-      email: usuario.email,
-    };
-
-    const pedido = new Pedido({
-      usuario: usuarioId,
-      datosCliente,
-      datosEnvio: resumen.envio.destino,
-      productos: resumen.productosFinal,
-      subtotal: resumen.subtotal,
-      descuento: resumen.descuento,
-      total: resumen.total,
-      metodoPago: resumen.metodoPago,
-      estadoPago: ESTADO_PAGO_PENDIENTE,
-      envio: {
-        ...resumen.envio.destino,
-        tipo: resumen.envio.tipo,
-        operador: resumen.envio.operador,
-        proveedor: resumen.envio.proveedor,
-        costo: resumen.envio.costo,
-        esGratis: resumen.envio.esGratis,
-        estadoEnvio: resumen.envio.estadoEnvio,
-      },
-      pago: {
-        proveedor: resumen.pago.proveedor,
-        estado: ESTADO_PAGO_PENDIENTE,
-        statusDetalle:
-          resumen.metodoPago === METODO_PAGO_TRANSFERENCIA
-            ? "pendiente_transferencia"
-            : "",
-      },
-      estadoPedido: ESTADO_PEDIDO_EN_ESPERA_PAGO,
-    });
-
-    await pedido.save();
-
-    if (guardarDatosEnvio === true) {
-      usuario.datosEnvioPreferidos = resumen.envio.destino;
-      await usuario.save({ validateBeforeSave: false });
-    }
-
-    res.status(201).json(construirRespuestaPedido(pedido));
-  } catch (error) {
-    return responderError(res, 400, "Error al crear el pedido", error);
-  }
+export const listarPedidosAdmin = async (_req, res) => {
+  const orders = await Pedido.find().sort({ createdAt: -1 });
+  return res.json({
+    data: {
+      pedidos: orders.map(toAdminOrderDTO),
+    },
+  });
 };
 
-export const subirComprobanteTransferencia = async (req, res) => {
-  try {
-    const pedido = await Pedido.findById(req.params.id);
+export const obtenerPedidoAdmin = async (req, res) => {
+  const order = await Pedido.findById(req.params.id);
+  if (!order) {
+    throw new AppError(404, "ORDER_NOT_FOUND", "Pedido no encontrado.");
+  }
+  return res.json({ data: { pedido: toAdminOrderDTO(order) } });
+};
 
-    if (!pedido) {
-      return res.status(404).json({ mensaje: "Pedido no encontrado" });
-    }
+const ALLOWED_OPERATIONAL_TRANSITIONS = {
+  [ORDER_STATUS_PENDING]: [
+    ORDER_STATUS_PENDING,
+    ORDER_STATUS_PAID,
+    ORDER_STATUS_CANCELLED,
+  ],
+  [ORDER_STATUS_PAID]: [
+    ORDER_STATUS_PAID,
+    ORDER_STATUS_PREPARING,
+    ORDER_STATUS_CANCELLED,
+  ],
+  [ORDER_STATUS_PREPARING]: [
+    ORDER_STATUS_PREPARING,
+    ORDER_STATUS_SHIPPED,
+    ORDER_STATUS_CANCELLED,
+  ],
+  [ORDER_STATUS_SHIPPED]: [
+    ORDER_STATUS_SHIPPED,
+    ORDER_STATUS_DELIVERED,
+  ],
+  [ORDER_STATUS_DELIVERED]: [ORDER_STATUS_DELIVERED],
+  [ORDER_STATUS_CANCELLED]: [ORDER_STATUS_CANCELLED],
+};
 
-    if (!usuarioPuedeGestionarPedido(pedido, req)) {
-      return res.status(403).json({
-        mensaje: "No tienes permisos para este pedido",
-      });
-    }
+export const validateOperationalTransition = (order, requestedStatus) => {
+  if (
+    order.requiresReview &&
+    ![order.estadoOperativo, ORDER_STATUS_CANCELLED].includes(requestedStatus)
+  ) {
+    throw new AppError(
+      409,
+      "ORDER_REQUIRES_REVIEW",
+      "El pedido requiere conciliación de pago antes de poder avanzar.",
+    );
+  }
 
-    if (pedido.metodoPago !== METODO_PAGO_TRANSFERENCIA) {
-      return res.status(400).json({
-        mensaje: "Solo los pedidos por transferencia aceptan comprobantes",
-      });
-    }
+  if (
+    ![ORDER_STATUS_PENDING, ORDER_STATUS_CANCELLED].includes(requestedStatus) &&
+    order.estadoPago !== PAYMENT_STATUS_APPROVED
+  ) {
+    throw new AppError(
+      409,
+      "PAYMENT_NOT_APPROVED",
+      "El pedido no puede avanzar sin un pago aprobado.",
+    );
+  }
 
-    if (!req.file) {
-      return res.status(400).json({
-        mensaje: "Debes adjuntar una imagen del comprobante",
-      });
-    }
-
-    const resultado = await subirImagenCloudinary(req.file, {
-      folder: "el_jardin_de_luna_comprobantes_transferencia",
-    });
-
-    pedido.comprobanteTransferencia = {
-      url: resultado?.secure_url || "",
-      publicId: resultado?.public_id || "",
-      originalName: req.file.originalname,
-      uploadedAt: new Date(),
-    };
-
-    if (pedido.estadoPago === ESTADO_PAGO_PENDIENTE) {
-      pedido.pago.statusDetalle = "comprobante_cargado";
-    }
-
-    await pedido.save();
-
-    return res.status(200).json({
-      mensaje: "Comprobante cargado correctamente",
-      comprobanteTransferencia: pedido.comprobanteTransferencia,
-      pedido,
-    });
-  } catch (error) {
-    return responderError(
-      res,
-      500,
-      "Error al cargar el comprobante de transferencia",
-      error,
+  if (
+    !ALLOWED_OPERATIONAL_TRANSITIONS[order.estadoOperativo]?.includes(
+      requestedStatus,
+    )
+  ) {
+    throw new AppError(
+      409,
+      "INVALID_ORDER_TRANSITION",
+      "El cambio de estado operativo no está permitido.",
     );
   }
 };
 
-export const listarPedidos = async (req, res) => {
-  try {
-    const filtro = req.rol === "Administrador" ? {} : { usuario: req.usuarioId };
-
-    const pedidos = await Pedido.find(filtro)
-      .populate("usuario", "nombre apellido email")
-      .sort({ createdAt: -1 });
-
-    res.status(200).json(pedidos);
-  } catch (error) {
-    return responderError(res, 500, "Error al listar pedidos", error);
-  }
-};
-
-export const actualizarEstadoPedido = async (req, res) => {
+export const actualizarEstadoPedidoAdmin = async (req, res) => {
   const session = await mongoose.startSession();
+  let updatedOrder;
 
   try {
-    const { estadoPedido, estadoPago } = req.body;
-    const pedido = await Pedido.findById(req.params.id);
-
-    if (!pedido) {
-      return res.status(404).json({ mensaje: "Pedido no encontrado" });
-    }
-
-    if (estadoPago && pedido.metodoPago !== METODO_PAGO_TRANSFERENCIA) {
-      return res.status(400).json({
-        mensaje:
-          "El estado de pago manual solo se puede cambiar en pedidos por transferencia",
-      });
-    }
-
-    let pedidoActualizado = null;
-
     await session.withTransaction(async () => {
-      const pedidoEnTransaccion = await Pedido.findById(req.params.id).session(
-        session,
-      );
-
-      if (!pedidoEnTransaccion) {
-        throw new Error("Pedido no encontrado");
+      const order = await Pedido.findById(req.params.id).session(session);
+      if (!order) {
+        throw new AppError(404, "ORDER_NOT_FOUND", "Pedido no encontrado.");
       }
 
-      const { estadoPagoFinal, estadoPedidoFinal } =
-        pedidoEnTransaccion.metodoPago === METODO_PAGO_TRANSFERENCIA
-          ? aplicarEstadoPagoTransferencia({
-              pedido: pedidoEnTransaccion,
-              estadoPagoSolicitado: estadoPago,
-              estadoPedidoSolicitado: estadoPedido,
-            })
-          : {
-              estadoPagoFinal:
-                pedidoEnTransaccion.estadoPago ||
-                pedidoEnTransaccion.pago?.estado ||
-                ESTADO_PAGO_PENDIENTE,
-              estadoPedidoFinal: estadoPedido,
-            };
+      const requestedStatus = req.body.estadoOperativo;
+      normalizarStockStateLegacy(order);
+      validateOperationalTransition(order, requestedStatus);
 
-      if (
-        !puedeUsarEstadoPedidoConPago({
-          estadoPedido: estadoPedidoFinal,
-          estadoPago: estadoPagoFinal,
-        })
-      ) {
-        const error = new Error(
-          "No puedes pasar el pedido a gestion o entrega sin un pago aprobado",
-        );
-        error.status = 400;
-        error.publicMessage = error.message;
-        throw error;
+      if (requestedStatus === ORDER_STATUS_CANCELLED) {
+        await restaurarStockPedido({
+          order,
+          session,
+          reason: "admin_cancelled",
+        });
+
+        if (order.estadoPago === PAYMENT_STATUS_APPROVED) {
+          order.requiresReview = true;
+          order.reviewReason = order.pago?.additionalPaymentIds?.length
+            ? "admin_cancelled_multiple_refunds_required"
+            : "admin_cancelled_refund_required";
+        }
       }
 
-      pedidoEnTransaccion.estadoPago = estadoPagoFinal;
-      pedidoEnTransaccion.pago.estado = estadoPagoFinal;
-      pedidoEnTransaccion.estadoPedido = estadoPedidoFinal;
-
-      await sincronizarInventarioPedido({
-        pedido: pedidoEnTransaccion,
-        session,
-        debeDescontar: pedidoDebeMantenerStockDescontado({
-          estadoPedido: estadoPedidoFinal,
-          estadoPago: estadoPagoFinal,
-        }),
-      });
-
-      await pedidoEnTransaccion.save({ session });
-      pedidoActualizado = pedidoEnTransaccion;
+      order.estadoOperativo = requestedStatus;
+      await order.save({ session });
+      updatedOrder = order;
     });
-
-    res.status(200).json({
-      mensaje: "Pedido actualizado correctamente",
-      pedido: pedidoActualizado,
-    });
-  } catch (error) {
-    if (error?.status) {
-      return res.status(error.status).json({
-        mensaje: error.publicMessage || error.message,
-      });
-    }
-
-    return responderError(res, 500, "Error al actualizar pedido", error);
   } finally {
     await session.endSession();
   }
-};
 
-export const eliminarPedido = async (req, res) => {
-  const session = await mongoose.startSession();
-
-  try {
-    const pedido = await Pedido.findById(req.params.id);
-
-    if (!pedido) {
-      return res.status(404).json({ mensaje: "Pedido no encontrado" });
-    }
-
-    await session.withTransaction(async () => {
-      const pedidoEnTransaccion = await Pedido.findById(req.params.id).session(
-        session,
-      );
-
-      if (!pedidoEnTransaccion) {
-        throw new Error("Pedido no encontrado");
-      }
-
-      await sincronizarInventarioPedido({
-        pedido: pedidoEnTransaccion,
-        session,
-        debeDescontar: false,
-      });
-
-      await pedidoEnTransaccion.deleteOne({ session });
-    });
-
-    res.status(200).json({
-      mensaje: "Pedido eliminado correctamente",
-    });
-  } catch (error) {
-    if (error?.status) {
-      return res.status(error.status).json({
-        mensaje: error.publicMessage || error.message,
-      });
-    }
-
-    return responderError(res, 500, "Error al eliminar pedido", error);
-  } finally {
-    await session.endSession();
-  }
+  return res.json({ data: { pedido: toAdminOrderDTO(updatedOrder) } });
 };

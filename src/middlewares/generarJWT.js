@@ -1,50 +1,39 @@
 import jwt from "jsonwebtoken";
 import {
-  esRolAdministrador,
-  getAdminPasswordVersion,
+  ADMIN_JWT_AUDIENCE,
+  ADMIN_JWT_ISSUER,
+  ADMIN_ROLE,
+  getAdminEmail,
   getAdminTokenExpiresIn,
+  getAdminTokenVersion,
 } from "../helpers/adminAuth.js";
+import AppError from "../helpers/AppError.js";
 
-const JWT_ISSUER = "el-jardin-de-luna-backend";
-
-const generarJWT = (uid, nombre, rol, email) => {
-  return new Promise((resolve, reject) => {
-    const secret = process.env.SECRETJWT;
-    const esAdmin = esRolAdministrador(rol);
-    const payload = {
-      uid,
-      nombre,
-      rol,
-      email,
-      ...(esAdmin ? { adminPasswordVersion: getAdminPasswordVersion() } : {}),
-    };
-    const tokenError = new Error("No se pudo generar el token");
-
-    if (!secret) {
-      reject(tokenError);
-      return;
-    }
-
-    jwt.sign(
-      payload,
-      secret,
-      {
-        expiresIn: esAdmin ? getAdminTokenExpiresIn() : "4h",
-        algorithm: "HS256",
-        issuer: JWT_ISSUER,
-        subject: String(uid),
-      },
-      (err, token) => {
-        if (err || !token) {
-          console.error("[jwt] Error al generar token:", err || tokenError);
-          reject(tokenError);
-          return;
-        }
-
-        resolve(token);
-      },
+const generarAdminJWT = () => {
+  const secret = String(process.env.JWT_SECRET || "").trim();
+  if (!secret) {
+    throw new AppError(
+      500,
+      "JWT_NOT_CONFIGURED",
+      "La autenticación administrativa no está configurada.",
     );
-  });
+  }
+
+  return jwt.sign(
+    {
+      role: ADMIN_ROLE,
+      email: getAdminEmail(),
+      tokenVersion: getAdminTokenVersion(),
+    },
+    secret,
+    {
+      algorithm: "HS256",
+      issuer: ADMIN_JWT_ISSUER,
+      audience: ADMIN_JWT_AUDIENCE,
+      subject: "admin",
+      expiresIn: getAdminTokenExpiresIn(),
+    },
+  );
 };
 
-export default generarJWT;
+export default generarAdminJWT;

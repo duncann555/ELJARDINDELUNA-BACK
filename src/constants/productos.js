@@ -1,34 +1,25 @@
-const PRODUCTO_CATEGORIAS_LEGACY = {
-  "Aceites Esenciales": "Aceites",
-  "Cosmetica Natural": "Hierbas Naturales",
-  "Cosmética Natural": "Hierbas Naturales",
-  Infusiones: "Hierbas Naturales",
+export const slugifyProductName = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+
+export const normalizeProductImages = (images, legacyImageUrl = "") => {
+  const candidates = Array.isArray(images)
+    ? images
+    : typeof images === "string"
+      ? images.split(",")
+      : [];
+
+  return [
+    ...new Set(
+      [...candidates, legacyImageUrl]
+        .map((image) => String(image || "").trim())
+        .filter(Boolean),
+    ),
+  ].slice(0, 8);
 };
-
-export const PRODUCTO_CATEGORIAS = [
-  "Tinturas Madres",
-  "Esencias Aromaticas",
-  "Hierbas Naturales",
-  "Aceites",
-];
-
-export const normalizarProductoCategoria = (value) => {
-  const categoria = String(value || "").trim();
-  return PRODUCTO_CATEGORIAS_LEGACY[categoria] || categoria;
-};
-
-export const esProductoCategoriaValida = (value) =>
-  PRODUCTO_CATEGORIAS.includes(normalizarProductoCategoria(value));
-
-export const PRODUCTO_ESTADOS = ["Activo", "Inactivo"];
-
-export const PRODUCTO_CAMPOS_EDITABLES = [
-  "nombre",
-  "categoria",
-  "descripcion",
-  "precio",
-  "stock",
-  "estado",
-  "destacado",
-];
-

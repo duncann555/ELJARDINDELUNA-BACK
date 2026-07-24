@@ -1,0 +1,10 @@
+const noStore = (_req, res, next) => {
+  res.setHeader(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, private",
+  );
+  res.setHeader("Pragma", "no-cache");
+  return next();
+};
+
+export default noStore;
